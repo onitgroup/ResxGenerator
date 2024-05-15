@@ -1,0 +1,4 @@
+{
+  "ResxGenerator.VSExtension.GenerateCommand.DisplayName": "Generate resx files for active project",
+  "ResxGenerator.VSExtension.GenerateCommand.ToolTip": "The active project depends on the current open file."
+}
