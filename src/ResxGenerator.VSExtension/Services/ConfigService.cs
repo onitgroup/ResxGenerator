@@ -11,6 +11,9 @@ using Microsoft.VisualStudio.ProjectSystem.Query;
 using System.IO;
 using System.Text.Json;
 using System.Globalization;
+using System.Windows.Media.Animation;
+using System.ComponentModel;
+using ResxGenerator.VSExtension.Translators;
 
 namespace ResxGenerator.VSExtension.Services
 {
@@ -20,12 +23,12 @@ namespace ResxGenerator.VSExtension.Services
     {
         public const string CONFIG_FILE = "resx-generator.json";
         private readonly VisualStudioExtensibility _extensibility;
-        private OutputWindow? _output;
         private readonly Task _initializationTask; // probably not needed
+        private OutputWindow? _output;
 
         public ConfigService(VisualStudioExtensibility extensibility)
         {
-            this._extensibility = Requires.NotNull(extensibility, nameof(extensibility));
+            _extensibility = Requires.NotNull(extensibility, nameof(extensibility));
             _initializationTask = Task.Run(InitializeAsync);
         }
 
@@ -35,74 +38,89 @@ namespace ResxGenerator.VSExtension.Services
             Assumes.NotNull(_output);
         }
 
-        private async Task WriteToOutputAsync(string message)
+        private FileInfo GetConfigFilePath(IProjectSnapshot snapshot)
         {
-            if (_output is not null)
-            {
-                await _output.Writer.WriteLineAsync(message);
-            }
+            return new FileInfo(Path.Combine(Path.GetDirectoryName(snapshot.Path)!, CONFIG_FILE));
         }
 
-        private static async Task<Config> AddDefaultConfigFileAsync(string path)
+        public bool Exists(IProjectSnapshot snapshot)
         {
+            return GetConfigFilePath(snapshot).Exists;
+        }
+
+        public async Task AddDefaultConfigFileAsync(IProjectSnapshot snapshot)
+        {
+            var configFile = GetConfigFilePath(snapshot);
+            if (configFile.Exists)
+            {
+                await _output.WriteToOutputAsync("Configuration file already exists.");
+                return;
+            }
             var config = Config.Default;
-            using var writeStream = new FileStream(path, FileMode.OpenOrCreate);
+            using var writeStream = new FileStream(configFile.FullName, FileMode.OpenOrCreate);
             await JsonSerializer.SerializeAsync(writeStream, config, new JsonSerializerOptions
             {
                 WriteIndented = true
             });
-
-            return config;
         }
 
-        public async Task<Config> GetOrCreateAsync(IProjectSnapshot snapshot)
+        public async Task<Config> GetAsync(IProjectSnapshot snapshot)
         {
-            var path = Path.Combine(Path.GetDirectoryName(snapshot.Path)!, CONFIG_FILE);
-
-            // it's written weird because in the other forms it does not work
-            var configFile = snapshot.Files
-                .Select(x => x.Path)
-                .Where(x => x == path)
-                .FirstOrDefault();
-
-            if (configFile is null)
+            var configFile = GetConfigFilePath(snapshot);
+            if (configFile.Exists == false)
             {
-                await WriteToOutputAsync("No configuration file found, a new one will be created.");
-                return await AddDefaultConfigFileAsync(path);
+                await _output.WriteToOutputAsync("No configuration file found.");
+                return Config.Default;
             }
 
             Config? config;
             try
             {
-                using var readStream = new FileStream(configFile, FileMode.Open);
+                using var readStream = new FileStream(configFile.FullName, FileMode.Open);
                 config = await JsonSerializer.DeserializeAsync<Config>(readStream);
                 if (config is null)
                 {
-                    await WriteToOutputAsync("Unable to read the configuration file, the default will be used");
+                    await _output.WriteToOutputAsync("Unable to read the configuration file, the default will be used");
                     config = Config.Default;
                 }
             }
             catch (Exception)
             {
-                await WriteToOutputAsync("Error while attempting to read the configuration file, the default will be used");
+                await _output.WriteToOutputAsync("Error while attempting to read the configuration file, the default will be used");
                 config = Config.Default;
             }
 
             return config;
         }
+
+        public async Task<ITranslatorSettings?> GetTranslatorConfigAsync(IProjectSnapshot snapshot)
+        {
+            var config = await GetAsync(snapshot);
+            var translator = EnumExtensions.GetValueFromDescription<TranslatorService>(config.TranslatorService);
+            return translator switch
+            {
+                TranslatorService.ChatGPT => config.ChatGPT ?? throw new NullReferenceException($"No settings found for translator {translator.Value.GetDescription()}"),
+                TranslatorService.DeepL => config.DeepL ?? throw new NullReferenceException($"No settings found for translator {translator.Value.GetDescription()}"),
+                TranslatorService.GoogleTranslate => null,
+                _ => throw new InvalidOperationException("No translator service found"),
+            };
+        }
     }
 
-#pragma warning restore VSEXTPREVIEW_OUTPUTWINDOW
+    public enum TranslatorService
+    {
+        [Description("ChatGPT")]
+        ChatGPT = 0,
+
+        [Description("DeepL")]
+        DeepL = 1,
+
+        [Description("GoogleTranslate")]
+        GoogleTranslate = 2
+    }
 
     public class Config
     {
-        public static Config Default => new()
-        {
-            ResourceName = "SharedResource",
-            WriteKeyAsValue = true,
-            Languages = []
-        };
-
         public string? ResourceName { get; set; }
 
         public bool WriteKeyAsValue { get; set; }
@@ -110,5 +128,21 @@ namespace ResxGenerator.VSExtension.Services
         public IEnumerable<string> Languages { get; set; } = [];
 
         internal IEnumerable<CultureInfo> Cultures => Languages.Select(x => new CultureInfo(x));
+
+        public string? TranslatorService { get; set; }
+
+        public ChatGPTTranslator.Settings? ChatGPT { get; set; }
+
+        public DeepLTranslator.Settings? DeepL { get; set; }
+
+        public static Config Default => new()
+        {
+            ResourceName = "SharedResource",
+            WriteKeyAsValue = true,
+            Languages = [],
+            TranslatorService = string.Empty,
+        };
     }
+
+#pragma warning restore VSEXTPREVIEW_OUTPUTWINDOW
 }

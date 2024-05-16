@@ -30,7 +30,7 @@ namespace ResxGenerator.VSExtension.Resx
 
         public override int GetHashCode()
         {
-            return this.Key.ToLower().GetHashCode();
+            return Key.ToLower().GetHashCode();
         }
     }
 }

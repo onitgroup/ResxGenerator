@@ -20,7 +20,7 @@ namespace ResxGenerator.VSExtension.Services
 
         public AnalyzerService(VisualStudioExtensibility extensibility)
         {
-            this._extensibility = Requires.NotNull(extensibility, nameof(extensibility));
+            _extensibility = Requires.NotNull(extensibility, nameof(extensibility));
             _initializationTask = Task.Run(InitializeAsync);
         }
 
@@ -28,14 +28,6 @@ namespace ResxGenerator.VSExtension.Services
         {
             _output = await Utilities.GetOutputWindowAsync(_extensibility);
             Assumes.NotNull(_output);
-        }
-
-        private async Task WriteToOutputAsync(string message)
-        {
-            if (_output is not null)
-            {
-                await _output.Writer.WriteLineAsync(message);
-            }
         }
 
         private static string? GetTextFromArgument(ExpressionSyntax expression)
@@ -65,7 +57,7 @@ namespace ResxGenerator.VSExtension.Services
             }
             else
             {
-                await WriteToOutputAsync("Symbol Microsoft.AspNetCore.Mvc.Localization.IHtmlLocalizer not found.");
+                await _output.WriteToOutputAsync("Symbol Microsoft.AspNetCore.Mvc.Localization.IHtmlLocalizer not found.");
             }
 
             type = compilation.GetTypeByMetadataName("Microsoft.Extensions.Localization.IStringLocalizer");
@@ -78,7 +70,7 @@ namespace ResxGenerator.VSExtension.Services
             }
             else
             {
-                await WriteToOutputAsync("Symbol Microsoft.Extensions.Localization.IStringLocalizer not found.");
+                await _output.WriteToOutputAsync("Symbol Microsoft.Extensions.Localization.IStringLocalizer not found.");
             }
 
             // Onit extensions
@@ -95,7 +87,7 @@ namespace ResxGenerator.VSExtension.Services
             }
             else
             {
-                await WriteToOutputAsync("Symbol Onit.Infrastructure.AspNetCore.HtmlLocalizerExtensions not found.");
+                await _output.WriteToOutputAsync("Symbol Onit.Infrastructure.AspNetCore.HtmlLocalizerExtensions not found.");
             }
 
             type = compilation.GetTypeByMetadataName("Onit.Infrastructure.AspNetCore.StringLocalizerExtensions");
@@ -110,7 +102,7 @@ namespace ResxGenerator.VSExtension.Services
             }
             else
             {
-                await WriteToOutputAsync("Symbol Onit.Infrastructure.AspNetCore.StringLocalizerExtensions not found.");
+                await _output.WriteToOutputAsync("Symbol Onit.Infrastructure.AspNetCore.StringLocalizerExtensions not found.");
             }
 
             // attributes
@@ -124,7 +116,7 @@ namespace ResxGenerator.VSExtension.Services
             }
             else
             {
-                await WriteToOutputAsync("Symbol System.ComponentModel.DataAnnotations.DisplayAttribute not found.");
+                await _output.WriteToOutputAsync("Symbol System.ComponentModel.DataAnnotations.DisplayAttribute not found.");
             }
 
             type = compilation.GetTypeByMetadataName("System.ComponentModel.DataAnnotations.RequiredAttribute");
@@ -137,7 +129,7 @@ namespace ResxGenerator.VSExtension.Services
             }
             else
             {
-                await WriteToOutputAsync("Symbol System.ComponentModel.DataAnnotations.RequiredAttribute not found.");
+                await _output.WriteToOutputAsync("Symbol System.ComponentModel.DataAnnotations.RequiredAttribute not found.");
             }
 
             type = compilation.GetTypeByMetadataName("System.ComponentModel.DescriptionAttribute");
@@ -150,7 +142,7 @@ namespace ResxGenerator.VSExtension.Services
             }
             else
             {
-                await WriteToOutputAsync("Symbol System.ComponentModel.DescriptionAttribute not found.");
+                await _output.WriteToOutputAsync("Symbol System.ComponentModel.DescriptionAttribute not found.");
             }
 
             return symbols;
@@ -207,7 +199,7 @@ namespace ResxGenerator.VSExtension.Services
                                 break;
 
                             case null: // should NEVER happen
-                                await WriteToOutputAsync($"Symbol reference is null {location}");
+                                await _output.WriteToOutputAsync($"Symbol reference is null {location}");
                                 continue;
                             default:
                                 continue;
@@ -215,7 +207,7 @@ namespace ResxGenerator.VSExtension.Services
 
                         var line = location.Location.GetLineSpan().StartLinePosition.Line;
                         var text = await doc.GetTextAsync();
-                        await WriteToOutputAsync($"{doc.FilePath} Line: {line} => {text.Lines[line].ToString().Trim()}");
+                        await _output.WriteToOutputAsync($"{doc.FilePath} Line: {line} => {text.Lines[line].ToString().Trim()}");
                     }
                 }
             }

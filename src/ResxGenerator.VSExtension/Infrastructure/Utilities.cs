@@ -8,10 +8,10 @@ namespace ResxGenerator.VSExtension.Infrastructure
     public static class Utilities
     {
         // https://github.com/JamesW75/visual-studio-project-type-guid
-        public static FrozenSet<Guid> SupportedProjects = new Guid[] {
-            Guid.Parse("9A19103F-16F7-4668-BE54-9A1E7A4F7556"), // C# (.Net Core)
-            Guid.Parse("FAE04EC0-301F-11D3-BF4B-00C04F79EFBC"), // C#
-        }.ToFrozenSet();
+        //public static FrozenSet<Guid> SupportedProjects = new Guid[] {
+        //    Guid.Parse("9A19103F-16F7-4668-BE54-9A1E7A4F7556"), // C# (.Net Core)
+        //    Guid.Parse("FAE04EC0-301F-11D3-BF4B-00C04F79EFBC"), // C#
+        //}.ToFrozenSet();
 
         /// <summary>
         /// Gets the project neutral language by reading the csproj xml
@@ -35,7 +35,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
             return await extensibility
                 .Views()
                 .Output
-                .GetChannelAsync(nameof(ResxGeneratorExtension), nameof(Resources.OutputWindowDisplayName), default);
+                .GetChannelAsync(nameof(ExtensionEntrypoint), nameof(Resources.OutputWindowDisplayName), default);
         }
 
 #pragma warning restore VSEXTPREVIEW_OUTPUTWINDOW
