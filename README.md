@@ -10,7 +10,7 @@ Un tool per generare ed aggiornare automaticamente i file .resx, il tool sfrutta
 - [Possibili errori](#possibili-errori)
 
 ## Installazione
-Per installare l'estensione basta scaricare dalla sezione _Releases_ lo zip con l'ultima versione, decomprimerlo ed aprire il file "ResxGenerator.VSExtension.vsix", partirà il solito processo di installazione di Visual Studio.
+Per installare l'estensione basta scaricare dalla sezione [Releases](https://github.com/onitgroup/ResxGenerator/releases) lo zip con l'ultima versione, decomprimerlo ed aprire il file "ResxGenerator.VSExtension.vsix", partirà il solito processo di installazione di Visual Studio.
 
 > [!NOTE]
 > È necessaria avere una versione di Visual Studio >= 17.9
@@ -45,25 +45,56 @@ Il tool considera soltanto i seguenti simboli, gli overload sono inclusi:
 > Se in un progetto viene creata una nuova estensione di queste classi o un nuovo overload di questi metodi verranno ignorati.
 
 ### Esecuzione
-In alto nel menù _Extension_ è disponibile un nuovo pulsante con cui eseguire il tool:
+In alto nel menù _Extension_ è disponibile un nuovo sotto-menù pulsante con cui eseguire il tool:
 
-![image](https://github.com/gamadori-osm/ResxGenerator/assets/114159788/9d6a3bdf-3d06-4fe3-ba98-1b6a2f89eb76)
+![image](https://github.com/onitgroup/ResxGenerator/assets/114159788/d2e94693-b1c6-4fe5-99b5-330f4e57e578)
 
 ### File di configurazione
-Quando il tool viene lanciato se non presente verrà generato il file di configurazione _resx-generator.json_:
+Di seguito un esempio del file di configurazione _resx-generator.json_, la configurazione è per progetto:
 ```json
 {
   "ResourceName": "SharedResource",
+  "ValidationComment": "Da validare",
   "WriteKeyAsValue": true,
-  "Languages": []
+  "Languages": [ "en-US", "fr-FR" ],
+  "Translator": "ChatGPT | GoogleTranslate",
+  "OverwriteTranslations": "false",
+  "ChatGPT": {
+    "Token": "*TOKEN DI AUTENTICAZIONE*",
+    "Model": "gpt-3.5-turbo",
+    "Prompt": "Translate every value of the following JSON object from this locale {sourceLanguage} to this locale {targetLanguage}, do not translate symbols",
+  }
 }
 ```
-- **ResourceName**: il nome base per i file di configurazione senza estensione, a questo verrà aggiunta la lingua,
-- **WriteKeyAsValue**: se _true_ quando verrà aggiunta una nuova entry il valore verrà settato uguale alla chiave, se _false_ verrà lasciato vuoto,
-- **Languages**: la lista dei linguaggi da considerare in codice ISO, esempio `["en", "it", "fr" ...]`
+- **ResourceName**: il nome base per il file delle risorse senza estensione, la lingua verrà aggiunta in automatico;
+- **ValidationComment (opzionale)**: se valorizzato verrà messo come commento alle nuove entry;
+- **WriteKeyAsValue (opzionale)**: se _true_ quando verrà aggiunta una nuova entry il valore verrà settato uguale alla chiave, se _false_ verrà lasciato vuoto;
+- **Languages**: la lista dei linguaggi da considerare in codice ISO, esempio `["en", "it", "fr" ...]`;
+- **Translator (opzionale)**: il servizio da utilizzare per le traduzioni, se non valorizzato le stringhe non saranno tradotte;
+- **OverwriteTranslations (opzionale)**: se _true_ le traduzioni esistenti verranno aggiornate;
+- **ChatGPT**: vedere la sezione dedicata di seguito;
 
 > [!NOTE]
-> Il tool controlla il NeutralLanguage del progetto e se presente nei linguaggi da considerare lo esclude.
+> Il tool usa il _NeutralLanguage_ come linguaggio di partenza per i traduttori. Inoltre, se è presente nei linguaggi da considerare lo esclude dalla lista.
+
+### Traduttori
+
+## ChatGPT
+```json
+  "ChatGPT": {
+    "Token": "*TOKEN DI AUTENTICAZIONE*",
+    "Model": "gpt-3.5-turbo",
+    "Prompt": "Translate every value of the following JSON object from this locale {sourceLanguage} to this locale {targetLanguage}, do not translate symbols",
+  }
+```
+- **ChatGPT**: vedere la sezione dedicata di seguito;
+  - **Token**: il token di autenticazione per le api di ChatGPT
+  - **Model**: il modello di ChatGPT da utilizzare
+  - **Prompt**: l'incipit che verrà mandato a ChatGPT come comando per tradurre, è possibile personalizzarlo per fornire più contesto da usare nelle traduzioni. È bene tenere a mente che a questo prompt verrà aggiunto un oggetto JSON con le stringhe da tradurre. Ci sono due placeholder disponibili _{sourceLanguage}_ e _{targetLanguage}_. Il primo verrà sostituito con il _NeutralLanguage_, mentre il secondo con il linguaggio da tradurre;
+
+
+
+## GoogleTranslate
 
 ### Monitoraggio
 È possibile trovare un log dettagliato nella finestra _View_ -> _Output_ -> nell'elenco delle sorgenti selezionare _Resx Generator_.
