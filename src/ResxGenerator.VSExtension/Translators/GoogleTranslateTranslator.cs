@@ -3,14 +3,11 @@ using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Documents;
 using ResxGenerator.VSExtension.Infrastructure;
 using ResxGenerator.VSExtension.Services;
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace ResxGenerator.VSExtension.Translators
 {
@@ -18,6 +15,7 @@ namespace ResxGenerator.VSExtension.Translators
 
     public class GoogleTranslateTranslator : ITranslator
     {
+        private const int CHUNK_SIZE = 50;
         private readonly ConfigService _config;
         private readonly VisualStudioExtensibility _extensibility;
         private readonly Task _initializationTask; // probably not needed
@@ -36,28 +34,46 @@ namespace ResxGenerator.VSExtension.Translators
             Assumes.NotNull(_output);
         }
 
-        public async Task<Dictionary<string, string>> TranslateAsync(ITranslatorSettings? _, CultureInfo source, CultureInfo target, IEnumerable<string> values)
+        public async Task<Dictionary<string, string?>> TranslateAsync(ITranslatorSettings? _, CultureInfo source, CultureInfo target, IEnumerable<string> values)
         {
-            var res = new Dictionary<string, string>();
-            var builder = new StringBuilder();
-            builder.Append("https://clients5.google.com/translate_a/t");
-            builder.Append("?client=dict-chrome-ex");
-            builder.Append($"&sl={source.TwoLetterISOLanguageName}");
-            builder.Append($"&tl={target.TwoLetterISOLanguageName}");
+            var res = new Dictionary<string, string?>();
+            var baseUrl = $"https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl={source.TwoLetterISOLanguageName}&tl={target.TwoLetterISOLanguageName}";
 
-            using var client = new HttpClient();
-            var partialUrl = builder.ToString();
-            foreach (var (value, index) in values.Select((x, i) => (x, i + 1)))
+            try
             {
-                await _output.WriteToOutputAsync($"Translating: {(index) / (decimal)values.Count() * 100:.00}%");
-                var response = await client.GetAsync(partialUrl + $"&q={value}");
-                response.EnsureSuccessStatusCode();
+                int c = 0;
+                while (c < values.Count()) // iter in chunk to avoid long urls, the parameters are all in query string
+                {
+                    await _output.WriteToOutputAsync($"Translating: {(c + 1) / (decimal)values.Count() * 100:0.00}%");
+                    var sub = values.Skip(c).Take(CHUNK_SIZE);
 
-                var content = await response.Content.ReadAsStringAsync();
-                res[value] = content.Substring(2, content.Length - 4);
+                    var builder = new StringBuilder(baseUrl);
+
+                    foreach (var value in sub)
+                    {
+                        builder.Append($"&q={value}");
+                    }
+
+                    using (var client = new HttpClient())
+                    {
+                        var response = await client.GetAsync(builder.ToString());
+                        response.EnsureSuccessStatusCode();
+                        var translations = await JsonSerializer.DeserializeAsync<List<string>>(await response.Content.ReadAsStreamAsync());
+
+                        foreach (var (value, index) in sub.Select((x, i) => (x, i)))
+                        {
+                            res[value] = translations?.ElementAtOrDefault(index);
+                        }
+                    }
+
+                    c += CHUNK_SIZE;
+                }
+                await _output.WriteToOutputAsync("Translations done.");
             }
-
-            await _output.WriteToOutputAsync("Translations done.");
+            catch (Exception)
+            {
+                await _output.WriteToOutputAsync("Unable to get the translations, empty values will be used.");
+            }
 
             return res;
         }

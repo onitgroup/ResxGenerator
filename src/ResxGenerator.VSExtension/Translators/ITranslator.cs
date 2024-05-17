@@ -13,6 +13,6 @@ namespace ResxGenerator.VSExtension.Translators
 
     public interface ITranslator
     {
-        public Task<Dictionary<string, string>> TranslateAsync(ITranslatorSettings? settingsInterface, CultureInfo source, CultureInfo target, IEnumerable<string> values);
+        public Task<Dictionary<string, string?>> TranslateAsync(ITranslatorSettings? settingsInterface, CultureInfo source, CultureInfo target, IEnumerable<string> values);
     }
 }

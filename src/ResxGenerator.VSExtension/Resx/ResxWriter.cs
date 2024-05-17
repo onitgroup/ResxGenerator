@@ -38,7 +38,7 @@ namespace ResxGenerator.VSExtension.Resx
         /// </summary>
         /// <param name="elements"></param>
         /// <returns></returns>
-        public void AddRange(IEnumerable<ResxElement> elements)
+        public void AddRange(IEnumerable<ResxElement> elements, bool overwriteValues = false)
         {
             if (_xd.Root is null) throw new InvalidOperationException("XML root element is null");
 
@@ -55,14 +55,52 @@ namespace ResxGenerator.VSExtension.Resx
                     continue;
 
                 if (existingKeys.BinarySearch(e.Key, StringComparer.OrdinalIgnoreCase) >= 0)
-                    continue;
+                {
+                    if (overwriteValues)
+                    {
+                        var existingElement = _xd.Root
+                            .Descendants("data")
+                            .Where(x => x.Attribute("name")?.Value == e.Key)
+                            .FirstOrDefault();
 
-                var xmlElement = new XElement("data",
-                    new XAttribute("name", e.Key),
-                    new XAttribute($"{XNamespace.Xml + "space"}", "preserve"),
-                    new XElement("value", e.Value));
+                        existingElement.Attribute("name").Value = e.Key;
 
-                _xd.Root.Add(xmlElement);
+                        var comment = existingElement.Descendants("comment").FirstOrDefault();
+                        if (comment is null)
+                        {
+                            existingElement.Add(new XElement("comment", e.Comment));
+                        }
+                        else
+                        {
+                            comment.Value = e.Comment;
+                        }
+
+                        var value = existingElement.Descendants("value").FirstOrDefault();
+                        if (value is null)
+                        {
+                            existingElement.Add(new XElement("value", e.Value));
+                        }
+                        else
+                        {
+                            value.Value = e.Value;
+                        }
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    var xmlElement = new XElement("data",
+                        new XAttribute("name", e.Key),
+                        new XAttribute($"{XNamespace.Xml + "space"}", "preserve"),
+                        new XElement("value", e.Value),
+                        new XElement("comment", e.Comment)
+                    );
+
+                    _xd.Root.Add(xmlElement);
+                }
             }
         }
 

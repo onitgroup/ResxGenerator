@@ -2,18 +2,30 @@
 
 namespace ResxGenerator.VSExtension.Resx
 {
-    [DebuggerDisplay("Key = {Key} Value = {Value}")]
-    public class ResxElement(string key, string? value) : IEquatable<ResxElement>
+    [DebuggerDisplay("Key = {Key} Value = {Value} Comment = {Comment}")]
+    public class ResxElement: IEquatable<ResxElement>
     {
         /// <summary>
         /// Resource key
         /// </summary>
-        public string Key { get; set; } = key;
+        public string Key { get; set; }
 
         /// <summary>
         /// Resource value
         /// </summary>
-        public string? Value { get; set; } = value;
+        public string? Value { get; set; }
+
+        /// <summary>
+        /// Resource comment
+        /// </summary>
+        public string? Comment { get; set; }
+
+        public ResxElement(string key, string? value, string? comment)
+        {
+            Key = key;
+            Value = value;
+            Comment = comment;
+        }
 
         public override bool Equals(object obj)
         {

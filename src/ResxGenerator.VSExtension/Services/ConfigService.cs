@@ -1,19 +1,14 @@
-﻿using Microsoft.VisualStudio.Extensibility;
-using Microsoft;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Microsoft;
+using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Documents;
-using ResxGenerator.VSExtension.Infrastructure;
 using Microsoft.VisualStudio.ProjectSystem.Query;
+using ResxGenerator.VSExtension.Infrastructure;
+using ResxGenerator.VSExtension.Translators;
+using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
-using System.Globalization;
-using System.Windows.Media.Animation;
-using System.ComponentModel;
-using ResxGenerator.VSExtension.Translators;
+using System.Text.Json.Serialization;
 
 namespace ResxGenerator.VSExtension.Services
 {
@@ -25,6 +20,11 @@ namespace ResxGenerator.VSExtension.Services
         private readonly VisualStudioExtensibility _extensibility;
         private readonly Task _initializationTask; // probably not needed
         private OutputWindow? _output;
+
+        private readonly JsonSerializerOptions _indentedOptions = new()
+        {
+            WriteIndented = true,
+        };
 
         public ConfigService(VisualStudioExtensibility extensibility)
         {
@@ -58,10 +58,7 @@ namespace ResxGenerator.VSExtension.Services
             }
             var config = Config.Default;
             using var writeStream = new FileStream(configFile.FullName, FileMode.OpenOrCreate);
-            await JsonSerializer.SerializeAsync(writeStream, config, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+            await JsonSerializer.SerializeAsync(writeStream, config, _indentedOptions);
         }
 
         public async Task<Config> GetAsync(IProjectSnapshot snapshot)
@@ -96,14 +93,20 @@ namespace ResxGenerator.VSExtension.Services
         public async Task<ITranslatorSettings?> GetTranslatorConfigAsync(IProjectSnapshot snapshot)
         {
             var config = await GetAsync(snapshot);
-            var translator = EnumExtensions.GetValueFromDescription<TranslatorService>(config.TranslatorService);
-            return translator switch
+
+            return config.TranslatorService switch
             {
-                TranslatorService.ChatGPT => config.ChatGPT ?? throw new NullReferenceException($"No settings found for translator {translator.Value.GetDescription()}"),
-                TranslatorService.DeepL => config.DeepL ?? throw new NullReferenceException($"No settings found for translator {translator.Value.GetDescription()}"),
+                TranslatorService.ChatGPT => config.ChatGPT ?? throw new NullReferenceException($"No settings found for translator {config.Translator}"),
                 TranslatorService.GoogleTranslate => null,
                 _ => throw new InvalidOperationException("No translator service found"),
             };
+        }
+
+        public async Task UpdateAsync(IProjectSnapshot snapshot, Config config)
+        {
+            var configFile = GetConfigFilePath(snapshot);
+            using var writeStream = new FileStream(configFile.FullName, FileMode.OpenOrCreate);
+            await JsonSerializer.SerializeAsync(writeStream, config, _indentedOptions);
         }
     }
 
@@ -112,35 +115,42 @@ namespace ResxGenerator.VSExtension.Services
         [Description("ChatGPT")]
         ChatGPT = 0,
 
-        [Description("DeepL")]
-        DeepL = 1,
-
         [Description("GoogleTranslate")]
-        GoogleTranslate = 2
+        GoogleTranslate = 1
     }
 
     public class Config
     {
         public string? ResourceName { get; set; }
 
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public string? ValidationComment { get; set; }
+
         public bool WriteKeyAsValue { get; set; }
 
         public IEnumerable<string> Languages { get; set; } = [];
 
+        [JsonIgnore]
         internal IEnumerable<CultureInfo> Cultures => Languages.Select(x => new CultureInfo(x));
 
-        public string? TranslatorService { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public string? Translator { get; set; }
 
+        [JsonIgnore]
+        internal TranslatorService? TranslatorService => Translator.GetValueFromDescription<TranslatorService>();
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public bool OverwriteTranslations { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public ChatGPTTranslator.Settings? ChatGPT { get; set; }
-
-        public DeepLTranslator.Settings? DeepL { get; set; }
 
         public static Config Default => new()
         {
             ResourceName = "SharedResource",
             WriteKeyAsValue = true,
             Languages = [],
-            TranslatorService = string.Empty,
+            Translator = string.Empty,
         };
     }
 

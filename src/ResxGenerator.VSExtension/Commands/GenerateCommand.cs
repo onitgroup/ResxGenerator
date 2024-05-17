@@ -49,19 +49,6 @@ namespace ResxGenerator.VSExtension.Commands
             await base.InitializeAsync(cancellationToken);
         }
 
-        private ITranslator? GetTranslator(string? key)
-        {
-            var translatorService = EnumExtensions.GetValueFromDescription<TranslatorService>(key);
-
-            return translatorService switch
-            {
-                TranslatorService.ChatGPT => _services.GetRequiredService<ChatGPTTranslator>(),
-                TranslatorService.DeepL => _services.GetRequiredService<DeepLTranslator>(),
-                TranslatorService.GoogleTranslate => _services.GetRequiredService<GoogleTranslateTranslator>(),
-                _ => null,
-            };
-        }
-
         /// <inheritdoc />
         public override async Task ExecuteCommandAsync(IClientContext context, CancellationToken cancellationToken)
         {
@@ -117,33 +104,60 @@ namespace ResxGenerator.VSExtension.Commands
 
                 var symbols = await _analyzer.GatherSymbolsAsync(compilation);
                 var strings = await _analyzer.FindStringsAsync(symbols, project.Solution);
-                var translator = GetTranslator(config.TranslatorService);
+
+                await _output.WriteToOutputAsync($"Found {strings.Count()} strings.");
+
+                ITranslator? translator = config.TranslatorService switch
+                {
+                    TranslatorService.ChatGPT => _services.GetRequiredService<ChatGPTTranslator>(),
+                    TranslatorService.GoogleTranslate => _services.GetRequiredService<GoogleTranslateTranslator>(),
+                    _ => null,
+                };
 
                 foreach (var lang in languages)
                 {
-                    IEnumerable<ResxElement> resxElements;
+                    List<ResxElement> resxElements;
                     if (translator is not null)
                     {
-                        await _output.WriteToOutputAsync($"Translating with {config.TranslatorService}");
+                        await _output.WriteToOutputAsync($"Translating with {config.Translator}");
                         var settings = await _config.GetTranslatorConfigAsync(projectSnapshot);
                         var translations = await translator.TranslateAsync(settings, neutralLanguage, lang, strings);
 
-                        resxElements = strings.Select(x => new ResxElement(x, translations[x]));
+                        foreach (var entry in translations.Where(x => string.IsNullOrEmpty(x.Value)))
+                        {
+                            await _output.WriteToOutputAsync($"Unable to translate value: \"{entry.Key}\"");
+                        }
+
+                        resxElements = strings.Select(x => new ResxElement(x, translations.GetValueOrDefault(x), null)).ToList();
                     }
                     else
                     {
                         await _output.WriteToOutputAsync($"No translator used");
-                        resxElements = config.WriteKeyAsValue
-                            ? strings.Select(x => new ResxElement(x, x))
-                            : strings.Select(x => new ResxElement(x, null));
+                        resxElements = strings.Select(x => new ResxElement(x, null, null)).ToList();
+                    }
+
+                    if (config.WriteKeyAsValue)
+                    {
+                        foreach (var element in resxElements.Where(x => string.IsNullOrEmpty(x.Value)))
+                        {
+                            element.Value = element.Key;
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(config.ValidationComment) == false)
+                    {
+                        foreach (var element in resxElements)
+                        {
+                            element.Comment = config.ValidationComment;
+                        }
                     }
 
                     var writer = new ResxWriter(Path.Combine(projectDir, $"{config.ResourceName}.{lang}.resx"));
-                    writer.AddRange(resxElements);
+                    writer.AddRange(resxElements, config.OverwriteTranslations);
                     writer.Save();
                 }
 
-                await _output.WriteToOutputAsync("Done.");
+                await _output.WriteToOutputAsync("Command executed.");
             }
             catch (Exception e)
             {

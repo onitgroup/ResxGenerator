@@ -1,5 +1,7 @@
 {
   "ResxGenerator.VSExtension.MyMenu.DisplayName": "ResxGenerator",
   "ResxGenerator.VSExtension.GenerateCommand.DisplayName": "Generate",
-  "ResxGenerator.VSExtension.GenerateCommand.ToolTip": "The active project depends on the current open file."
+  "ResxGenerator.VSExtension.GenerateCommand.ToolTip": "The active project depends on the current open file.",
+  "ResxGenerator.VSExtension.AddChatGPTConfigCommand.DisplayName": "Add ChatGPT configuration",
+  "ResxGenerator.VSExtension.AddChatGPTConfigCommand.ToolTip": "Adds a base configuration for the ChatGPT translator."
 }

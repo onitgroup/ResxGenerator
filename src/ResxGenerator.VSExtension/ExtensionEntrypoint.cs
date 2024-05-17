@@ -29,7 +29,7 @@ namespace ResxGenerator.VSExtension
             Children = [
                 MenuChild.Command<GenerateCommand>(),
                 MenuChild.Separator,
-                MenuChild.Command<GenerateCommand>(),
+                MenuChild.Command<AddChatGPTConfigCommand>(),
             ],
         };
 
@@ -42,7 +42,6 @@ namespace ResxGenerator.VSExtension
             serviceCollection.AddScoped<ConfigService>();
             serviceCollection.AddScoped<AnalyzerService>();
             serviceCollection.AddScoped<ChatGPTTranslator>();
-            serviceCollection.AddScoped<DeepLTranslator>();
             serviceCollection.AddScoped<GoogleTranslateTranslator>();
         }
     }
