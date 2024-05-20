@@ -3,8 +3,7 @@
   <Metadata>
     <Identity Id="ResxGenerator.ffdeb9fe-85ca-4bb1-b528-12dac07c0779" Version="1.1.1" Language="en-US" Publisher="Onit" />
     <DisplayName>Resx Generator</DisplayName>
-    <Description>Generates resx files using Roslyn to search for string references.</Description>
-    <Preview>true</Preview>
+    <Description>Generate and translate resx files using Roslyn to search for string references.</Description>
   </Metadata>
   <Installation ExtensionType="VSSDK+VisualStudio.Extensibility">
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.7, 18.0)">
