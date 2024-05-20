@@ -57,11 +57,12 @@ namespace ResxGenerator.VSExtension.Translators
             try
             {
                 int c = 0;
-                while (c < values.Count()) // iter in chunk to avoid long urls, the parameters are all in query string
+                while (c < values.Count()) // iter to reduce the response time and to better manage the errors
                 {
                     await _output.WriteToOutputAsync($"Translating: {(c + 1) / (decimal)values.Count() * 100:0.00}%");
                     var sub = values.Skip(c).Take(CHUNK_SIZE).ToList();
 
+                    // after a long series of test 
                     var request = new TranslateRequest
                     {
                         Model = settings.Model,

@@ -3,29 +3,22 @@
 namespace ResxGenerator.VSExtension.Resx
 {
     [DebuggerDisplay("Key = {Key} Value = {Value} Comment = {Comment}")]
-    public class ResxElement: IEquatable<ResxElement>
+    public class ResxElement(string key, string? value, string? comment) : IEquatable<ResxElement>
     {
         /// <summary>
         /// Resource key
         /// </summary>
-        public string Key { get; set; }
+        public string Key { get; set; } = key;
 
         /// <summary>
         /// Resource value
         /// </summary>
-        public string? Value { get; set; }
+        public string? Value { get; set; } = value;
 
         /// <summary>
         /// Resource comment
         /// </summary>
-        public string? Comment { get; set; }
-
-        public ResxElement(string key, string? value, string? comment)
-        {
-            Key = key;
-            Value = value;
-            Comment = comment;
-        }
+        public string? Comment { get; set; } = comment;
 
         public override bool Equals(object obj)
         {
@@ -37,7 +30,7 @@ namespace ResxGenerator.VSExtension.Resx
         public bool Equals(ResxElement other)
         {
             if (other is null) return false;
-            return other.Key.Equals(Key, StringComparison.OrdinalIgnoreCase);
+            return other.Key.Equals(Key, StringComparison.InvariantCultureIgnoreCase);
         }
 
         public override int GetHashCode()

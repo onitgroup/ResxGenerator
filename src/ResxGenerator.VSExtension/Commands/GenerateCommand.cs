@@ -116,12 +116,30 @@ namespace ResxGenerator.VSExtension.Commands
 
                 foreach (var lang in languages)
                 {
+                    var resxManager = new ResxManager(Path.Combine(projectDir, $"{config.ResourceName}.{lang}.resx"));
+
                     List<ResxElement> resxElements;
                     if (translator is not null)
                     {
+                        Dictionary<string, string?> translations;
+
                         await _output.WriteToOutputAsync($"Translating with {config.Translator}");
                         var settings = await _config.GetTranslatorConfigAsync(projectSnapshot);
-                        var translations = await translator.TranslateAsync(settings, neutralLanguage, lang, strings);
+
+                        if (config.OverwriteTranslations)
+                        {
+                            translations = await translator.TranslateAsync(settings, neutralLanguage, lang, strings);
+                        }
+                        else
+                        {
+                            var existingStrings = resxManager.GetKeysWithValues();
+                            translations = await translator.TranslateAsync(
+                                settings,
+                                neutralLanguage,
+                                lang,
+                                strings.Where(x => existingStrings.Contains(x, StringComparer.InvariantCultureIgnoreCase) == false).ToList()
+                            );
+                        }
 
                         foreach (var entry in translations.Where(x => string.IsNullOrEmpty(x.Value)))
                         {
@@ -152,9 +170,8 @@ namespace ResxGenerator.VSExtension.Commands
                         }
                     }
 
-                    var writer = new ResxWriter(Path.Combine(projectDir, $"{config.ResourceName}.{lang}.resx"));
-                    writer.AddRange(resxElements, config.OverwriteTranslations);
-                    writer.Save();
+                    resxManager.AddRange(resxElements, config.OverwriteTranslations);
+                    resxManager.Save();
                 }
 
                 await _output.WriteToOutputAsync("Command executed.");

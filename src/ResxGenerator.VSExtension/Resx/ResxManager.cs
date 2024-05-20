@@ -7,12 +7,12 @@ namespace ResxGenerator.VSExtension.Resx
     /// <summary>
     /// Create and write to resx resource files
     /// </summary>
-    public class ResxWriter
+    public class ResxManager
     {
         private readonly XDocument _xd;
         private readonly string _resourceFilePath;
 
-        public ResxWriter(string resourceFullPath)
+        public ResxManager(string resourceFullPath)
         {
             _resourceFilePath = resourceFullPath;
 
@@ -33,6 +33,23 @@ namespace ResxGenerator.VSExtension.Resx
             resxTemplate.CopyTo(file);
         }
 
+        public IEnumerable<string> GetKeysWithValues()
+        {
+            if (_xd.Root is null) throw new InvalidOperationException("XML root element is null");
+
+            return _xd.Root
+                .Descendants("data")
+                .Where(x =>
+                {
+                    var value = x.Descendants("value").FirstOrDefault();
+                    return x.Attribute("name") is not null &&
+                           value is not null &&
+                           string.IsNullOrEmpty(value.Value) == false;
+                })
+                .Select(x => x.Attribute("name")!.Value)
+                .ToList();
+        }
+
         /// <summary>
         /// Add array of elements to the resource file, this method DOES NOT write the changes
         /// </summary>
@@ -46,7 +63,7 @@ namespace ResxGenerator.VSExtension.Resx
                 .Descendants("data")
                 .Where(x => x.Attribute("name") is not null)
                 .Select(x => x.Attribute("name")!.Value)
-                .OrderBy(x => x) // required to use binary search
+                .OrderBy(x => x) // required for BinarySearch
                 .ToList();
 
             foreach (var e in elements.Distinct())
@@ -54,17 +71,22 @@ namespace ResxGenerator.VSExtension.Resx
                 if (string.IsNullOrWhiteSpace(e.Key))
                     continue;
 
-                if (existingKeys.BinarySearch(e.Key, StringComparer.OrdinalIgnoreCase) >= 0)
+                e.Value ??= string.Empty;
+
+                if (existingKeys.BinarySearch(e.Key, StringComparer.InvariantCultureIgnoreCase) >= 0)
                 {
-                    if (overwriteValues)
-                    {
-                        var existingElement = _xd.Root
+                    // the key exists
+
+                    var existingElement = _xd.Root
                             .Descendants("data")
                             .Where(x => x.Attribute("name")?.Value == e.Key)
                             .FirstOrDefault();
 
-                        existingElement.Attribute("name").Value = e.Key;
+                    var value = existingElement.Descendants("value").FirstOrDefault();
 
+                    // if overwriteValues is true or the key does not have a real value
+                    if (overwriteValues || value is null || string.IsNullOrEmpty(value.Value))
+                    {
                         var comment = existingElement.Descendants("comment").FirstOrDefault();
                         if (comment is null)
                         {
@@ -75,7 +97,6 @@ namespace ResxGenerator.VSExtension.Resx
                             comment.Value = e.Comment;
                         }
 
-                        var value = existingElement.Descendants("value").FirstOrDefault();
                         if (value is null)
                         {
                             existingElement.Add(new XElement("value", e.Value));
@@ -92,6 +113,8 @@ namespace ResxGenerator.VSExtension.Resx
                 }
                 else
                 {
+                    // new key
+
                     var xmlElement = new XElement("data",
                         new XAttribute("name", e.Key),
                         new XAttribute($"{XNamespace.Xml + "space"}", "preserve"),
