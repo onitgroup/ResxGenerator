@@ -37,6 +37,12 @@ namespace ResxGenerator.VSExtension.Translators
         public async Task<Dictionary<string, string?>> TranslateAsync(ITranslatorSettings? _, CultureInfo source, CultureInfo target, IEnumerable<string> values)
         {
             var res = new Dictionary<string, string?>();
+
+            foreach (var value in values)
+            {
+                res[value] = null;
+            }
+
             var baseUrl = $"https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl={source.TwoLetterISOLanguageName}&tl={target.TwoLetterISOLanguageName}";
 
             try
@@ -73,6 +79,11 @@ namespace ResxGenerator.VSExtension.Translators
             catch (Exception)
             {
                 await _output.WriteToOutputAsync("Unable to get the translations, empty values will be used.");
+            }
+
+            if (res.ContainsKey(string.Empty))
+            {
+                res.Remove(string.Empty);
             }
 
             return res;

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="ResxGenerator.ffdeb9fe-85ca-4bb1-b528-12dac07c0779" Version="1.1.0" Language="en-US" Publisher="Onit" />
+    <Identity Id="ResxGenerator.ffdeb9fe-85ca-4bb1-b528-12dac07c0779" Version="1.1.1" Language="en-US" Publisher="Onit" />
     <DisplayName>Resx Generator</DisplayName>
     <Description>Generates resx files using Roslyn to search for string references.</Description>
     <Preview>true</Preview>

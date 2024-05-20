@@ -34,7 +34,7 @@ namespace ResxGenerator.VSExtension.Commands
         public override CommandConfiguration CommandConfiguration => new("%ResxGenerator.VSExtension.AddChatGPTConfigCommand.DisplayName%")
         {
             TooltipText = "%ResxGenerator.VSExtension.AddChatGPTConfigCommand.ToolTip%",
-            Icon = new(ImageMoniker.KnownValues.Extension, IconSettings.IconAndText),
+            Icon = new(ImageMoniker.KnownValues.AddBehavior, IconSettings.IconAndText),
             EnabledWhen = ActivationConstraint.And(
                 ActivationConstraint.SolutionState(SolutionState.FullyLoaded)
             )
@@ -75,7 +75,7 @@ namespace ResxGenerator.VSExtension.Commands
                     {
                         Token = "",
                         Model = "gpt-3.5-turbo",
-                        Prompt = $"Translate every value of the following JSON object from this locale {ChatGPTTranslator.SOURCE_PLACEHOLDER} in this locale {ChatGPTTranslator.TARGET_PLACEHOLDER}, do not translate symbols",
+                        Prompt = $"Translate the values of this JSON object from this locale {ChatGPTTranslator.SOURCE_PLACEHOLDER} to this locale {ChatGPTTranslator.TARGET_PLACEHOLDER} preserving its keys",
                     };
                 }
 

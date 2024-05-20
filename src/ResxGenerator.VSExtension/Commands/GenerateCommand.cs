@@ -36,7 +36,7 @@ namespace ResxGenerator.VSExtension.Commands
         public override CommandConfiguration CommandConfiguration => new("%ResxGenerator.VSExtension.GenerateCommand.DisplayName%")
         {
             TooltipText = "%ResxGenerator.VSExtension.GenerateCommand.ToolTip%",
-            Icon = new(ImageMoniker.KnownValues.Extension, IconSettings.IconAndText),
+            Icon = new(ImageMoniker.KnownValues.GenerateFile, IconSettings.IconAndText),
             EnabledWhen = ActivationConstraint.And(
                 ActivationConstraint.SolutionState(SolutionState.FullyLoaded)
             )
@@ -125,7 +125,7 @@ namespace ResxGenerator.VSExtension.Commands
 
                         foreach (var entry in translations.Where(x => string.IsNullOrEmpty(x.Value)))
                         {
-                            await _output.WriteToOutputAsync($"Unable to translate value: \"{entry.Key}\"");
+                            await _output.WriteToOutputAsync($"Unable to translate value: \"{entry.Key}\" for locale {lang.Name}");
                         }
 
                         resxElements = strings.Select(x => new ResxElement(x, translations.GetValueOrDefault(x), null)).ToList();

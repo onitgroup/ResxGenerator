@@ -44,6 +44,12 @@ namespace ResxGenerator.VSExtension.Translators
             var settings = (Settings)settingsInterface;
 
             var res = new Dictionary<string, string?>();
+
+            foreach (var value in values)
+            {
+                res[value] = null;
+            }
+
             var baseUrl = $"{settings.Prompt}: "
                 .Replace(SOURCE_PLACEHOLDER, source.Name)
                 .Replace(TARGET_PLACEHOLDER, target.Name);
@@ -54,7 +60,7 @@ namespace ResxGenerator.VSExtension.Translators
                 while (c < values.Count()) // iter in chunk to avoid long urls, the parameters are all in query string
                 {
                     await _output.WriteToOutputAsync($"Translating: {(c + 1) / (decimal)values.Count() * 100:0.00}%");
-                    var sub = values.Skip(c).Take(CHUNK_SIZE);
+                    var sub = values.Skip(c).Take(CHUNK_SIZE).ToList();
 
                     var request = new TranslateRequest
                     {
@@ -62,13 +68,14 @@ namespace ResxGenerator.VSExtension.Translators
                         Messages = [
                             new Message{
                                 Role = "user",
-                                Content = baseUrl + JsonSerializer.Serialize(sub.ToDictionary(k => k, v => v))
+                                Content = baseUrl + JsonSerializer.Serialize(sub.ToDictionary(sub.IndexOf, v => v))
                             }
                         ]
                     };
 
-                    using (var client = new HttpClient())
+                    try
                     {
+                        using var client = new HttpClient();
                         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", settings.Token);
                         var content = new StringContent(JsonSerializer.Serialize(request, _camelCaseOptions));
                         content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
@@ -81,18 +88,22 @@ namespace ResxGenerator.VSExtension.Translators
                             throw new NullReferenceException("Unable to get a valid response from ChatGPT");
                         }
 
-                        var translations = JsonSerializer.Deserialize<Dictionary<string, string>>(data.Choices.First().Message.Content);
+                        var translations = JsonSerializer.Deserialize<Dictionary<int, string?>>(data.Choices.First().Message.Content);
 
                         if (translations is not null)
                         {
-                            foreach (var entry in translations)
+                            foreach (var (value, index) in sub.Select((x, i) => (x, i)))
                             {
-                                res[entry.Key] = entry.Value;
+                                res[value] = translations?.ElementAtOrDefault(index).Value;
                             }
                         }
-                    }
 
-                    c += CHUNK_SIZE;
+                        c += CHUNK_SIZE;
+                    }
+                    catch (JsonException)
+                    {
+                        // unparsable response, retry
+                    }
                 }
 
                 await _output.WriteToOutputAsync("Translations done.");
@@ -100,6 +111,11 @@ namespace ResxGenerator.VSExtension.Translators
             catch (Exception ex)
             {
                 await _output.WriteToOutputAsync("Unable to get the translations, empty values will be used.");
+            }
+
+            if (res.ContainsKey(string.Empty))
+            {
+                res.Remove(string.Empty);
             }
 
             return res;
