@@ -51,6 +51,9 @@ In alto nel menù _Extension_ è disponibile un nuovo sotto-menù:
 
 ![image](https://github.com/onitgroup/ResxGenerator/assets/114159788/da974afb-093b-4e0e-80ed-e8fb0a073bf5)
 
+- **Generate**: esegue il tool;
+- **Add ChatGPT configuration**: aggiunge la configurazione di base di ChatGPT al file di configurazione;
+
 ### File di configurazione
 Di seguito un esempio del file di configurazione _resx-generator.json_, la configurazione è per progetto:
 ```json
