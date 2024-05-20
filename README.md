@@ -97,6 +97,9 @@ Di seguito la lista dei traduttori attualmente supportati:
 - **Model**: il modello di ChatGPT da utilizzare
 - **Prompt**: l'incipit che verrà mandato a ChatGPT come comando per tradurre, è possibile personalizzarlo per fornire più contesto da usare nelle traduzioni. È bene tenere a mente che a questo prompt verrà aggiunto un oggetto JSON con le stringhe da tradurre. Ci sono due placeholder disponibili _{sourceLanguage}_ e _{targetLanguage}_. Il primo verrà sostituito con il _NeutralLanguage_, mentre il secondo con il linguaggio da tradurre;
 
+Dato che l'integrazione si basa su ChatGPT potrebbero esserci dei comportamenti inaspettati.
+In caso di problemi provare a rilanciare il tool. 
+
 > [!CAUTION]
 > Modificare troppo il prompt può rompere completamente l'integrazione.
 
