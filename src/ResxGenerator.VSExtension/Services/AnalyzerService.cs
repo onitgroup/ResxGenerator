@@ -85,10 +85,6 @@ namespace ResxGenerator.VSExtension.Services
                                 x.Parameters.FirstOrDefault() is IParameterSymbol method &&
                                 method.Type.MetadataName == "IHtmlLocalizer"));
             }
-            else
-            {
-                await _output.WriteToOutputAsync("Symbol Onit.Infrastructure.AspNetCore.HtmlLocalizerExtensions not found.");
-            }
 
             type = compilation.GetTypeByMetadataName("Onit.Infrastructure.AspNetCore.StringLocalizerExtensions");
             if (type is not null)
@@ -100,9 +96,28 @@ namespace ResxGenerator.VSExtension.Services
                                 x.Parameters.FirstOrDefault() is IParameterSymbol method &&
                                 method.Type.MetadataName == "IStringLocalizer"));
             }
-            else
+
+            // Onit duplicates extensions for common library
+            type = compilation.GetTypeByMetadataName("LocalizerExtensions.HtmlLocalizerExtensions");
+            if (type is not null)
             {
-                await _output.WriteToOutputAsync("Symbol Onit.Infrastructure.AspNetCore.StringLocalizerExtensions not found.");
+                symbols.AddRange(type
+                    .GetMembers()
+                    .OfType<IMethodSymbol>()
+                    .Where(x => x.IsExtensionMethod &&
+                                x.Parameters.FirstOrDefault() is IParameterSymbol method &&
+                                method.Type.MetadataName == "IHtmlLocalizer"));
+            }
+
+            type = compilation.GetTypeByMetadataName("LocalizerExtensions.StringLocalizerExtensions");
+            if (type is not null)
+            {
+                symbols.AddRange(type
+                    .GetMembers()
+                    .OfType<IMethodSymbol>()
+                    .Where(x => x.IsExtensionMethod &&
+                                x.Parameters.FirstOrDefault() is IParameterSymbol method &&
+                                method.Type.MetadataName == "IStringLocalizer"));
             }
 
             // attributes

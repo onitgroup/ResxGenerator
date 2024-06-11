@@ -5,6 +5,8 @@ VisualStudioVersion = 17.9.34728.123
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ResxGenerator.VSExtension", "ResxGenerator.VSExtension\ResxGenerator.VSExtension.csproj", "{D244579B-4F64-4C1B-947A-08AC92DE921D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LocalizerExtensions", "LocalizerExtensions\LocalizerExtensions.csproj", "{FE6EA628-AD82-4591-A43D-42813B825AC2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -17,6 +19,10 @@ Global
 		{D244579B-4F64-4C1B-947A-08AC92DE921D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D244579B-4F64-4C1B-947A-08AC92DE921D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D244579B-4F64-4C1B-947A-08AC92DE921D}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{FE6EA628-AD82-4591-A43D-42813B825AC2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FE6EA628-AD82-4591-A43D-42813B825AC2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FE6EA628-AD82-4591-A43D-42813B825AC2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FE6EA628-AD82-4591-A43D-42813B825AC2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
