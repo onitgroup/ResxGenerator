@@ -30,12 +30,12 @@ namespace ResxGenerator.VSExtension.Infrastructure
 
 #pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
 
-        public static async Task<OutputWindow> GetOutputWindowAsync(VisualStudioExtensibility extensibility)
+        public static async Task<OutputWindow> GetOutputWindowAsync(VisualStudioExtensibility extensibility, CancellationToken cancellationToken)
         {
             return await extensibility
                 .Views()
                 .Output
-                .GetChannelAsync(nameof(ExtensionEntrypoint), nameof(Resources.OutputWindowDisplayName), default);
+                .GetChannelAsync(nameof(ExtensionEntrypoint), nameof(Resources.OutputWindowDisplayName), cancellationToken);
         }
 
 #pragma warning restore VSEXTPREVIEW_OUTPUTWINDOW

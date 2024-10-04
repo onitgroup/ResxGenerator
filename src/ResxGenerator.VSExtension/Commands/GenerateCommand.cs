@@ -45,7 +45,7 @@ namespace ResxGenerator.VSExtension.Commands
         /// <inheritdoc />
         public override async Task InitializeAsync(CancellationToken cancellationToken)
         {
-            _output = await Utilities.GetOutputWindowAsync(Extensibility);
+            _output = await Utilities.GetOutputWindowAsync(Extensibility, cancellationToken);
             await base.InitializeAsync(cancellationToken);
         }
 

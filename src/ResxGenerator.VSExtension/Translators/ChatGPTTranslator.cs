@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Threading;
 
 namespace ResxGenerator.VSExtension.Translators
 {
@@ -34,7 +35,7 @@ namespace ResxGenerator.VSExtension.Translators
 
         private async Task InitializeAsync()
         {
-            _output = await Utilities.GetOutputWindowAsync(_extensibility);
+            _output = await Utilities.GetOutputWindowAsync(_extensibility, CancellationToken.None);
             Assumes.NotNull(_output);
         }
 

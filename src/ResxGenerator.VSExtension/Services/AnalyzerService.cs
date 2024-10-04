@@ -7,6 +7,7 @@ using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Documents;
 using Microsoft.VisualStudio.Extensibility.Helpers;
 using ResxGenerator.VSExtension.Infrastructure;
+using System.Threading;
 
 namespace ResxGenerator.VSExtension.Services
 {
@@ -26,7 +27,7 @@ namespace ResxGenerator.VSExtension.Services
 
         private async Task InitializeAsync()
         {
-            _output = await Utilities.GetOutputWindowAsync(_extensibility);
+            _output = await Utilities.GetOutputWindowAsync(_extensibility, CancellationToken.None);
             Assumes.NotNull(_output);
         }
 

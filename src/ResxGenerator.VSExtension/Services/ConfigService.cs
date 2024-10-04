@@ -9,6 +9,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 
 namespace ResxGenerator.VSExtension.Services
 {
@@ -34,7 +35,7 @@ namespace ResxGenerator.VSExtension.Services
 
         private async Task InitializeAsync()
         {
-            _output = await Utilities.GetOutputWindowAsync(_extensibility);
+            _output = await Utilities.GetOutputWindowAsync(_extensibility, CancellationToken.None);
             Assumes.NotNull(_output);
         }
 

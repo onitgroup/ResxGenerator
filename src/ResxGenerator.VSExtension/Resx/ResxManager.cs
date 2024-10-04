@@ -79,7 +79,7 @@ namespace ResxGenerator.VSExtension.Resx
 
                     var existingElement = _xd.Root
                             .Descendants("data")
-                            .Where(x => x.Attribute("name")?.Value == e.Key)
+                            .Where(x => string.Equals(e.Key, x.Attribute("name")?.Value, StringComparison.InvariantCultureIgnoreCase))
                             .FirstOrDefault();
 
                     var value = existingElement.Descendants("value").FirstOrDefault();
@@ -92,7 +92,7 @@ namespace ResxGenerator.VSExtension.Resx
                         {
                             existingElement.Add(new XElement("comment", e.Comment));
                         }
-                        else
+                        else if(string.IsNullOrEmpty(e.Comment) == false)
                         {
                             comment.Value = e.Comment;
                         }

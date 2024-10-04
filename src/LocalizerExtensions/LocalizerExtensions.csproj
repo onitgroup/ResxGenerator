@@ -4,6 +4,13 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <PackageId>Onit.$(AssemblyName)</PackageId>
+    <Authors>Onit</Authors>
+    <Title>Some IHtmlLocalizer and IStringLocalizer to support gender and number in one line</Title>
+    <Product>Onit.$(AssemblyName)</Product>
+    <RepositoryUrl>https://github.com/onitgroup/ResxGenerator</RepositoryUrl>
+    <PackageTags>localization;localizers</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

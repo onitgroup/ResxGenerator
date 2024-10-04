@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System;
 
 namespace ResxGenerator.VSExtension.Translators
 {
@@ -30,14 +31,14 @@ namespace ResxGenerator.VSExtension.Translators
 
         private async Task InitializeAsync()
         {
-            _output = await Utilities.GetOutputWindowAsync(_extensibility);
+            _output = await Utilities.GetOutputWindowAsync(_extensibility, CancellationToken.None);
             Assumes.NotNull(_output);
         }
 
         public async Task<Dictionary<string, string?>> TranslateAsync(ITranslatorSettings? _, CultureInfo source, CultureInfo target, IEnumerable<string> values)
         {
             var res = new Dictionary<string, string?>();
-
+           
             foreach (var value in values)
             {
                 res[value] = null;
