@@ -13,24 +13,21 @@ using ResxGenerator.VSExtension.Infrastructure;
 using ResxGenerator.VSExtension.Resx;
 using ResxGenerator.VSExtension.Services;
 using ResxGenerator.VSExtension.Translators;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Text.Json;
-using System.Windows.Forms;
+
+#pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
 
 namespace ResxGenerator.VSExtension.Commands
 {
-#pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
-
     [VisualStudioContribution]
-    internal class GenerateCommand(AsyncServiceProviderInjection<SComponentModel, SComponentModel> componentModelProvider, AnalyzerService analyzer, ConfigService config, IServiceProvider services) : Command
+    internal class GenerateCommand(AsyncServiceProviderInjection<SComponentModel, SComponentModel> componentModelProvider, IAnalyzerService analyzer, ConfigService config, IServiceProvider services) : Command
     {
         private readonly AsyncServiceProviderInjection<SComponentModel, SComponentModel> _componentModelProvider = Requires.NotNull(componentModelProvider, nameof(componentModelProvider));
-        private readonly AnalyzerService _analyzer = Requires.NotNull(analyzer, nameof(analyzer));
+        private readonly IAnalyzerService _analyzer = Requires.NotNull(analyzer, nameof(analyzer));
         private readonly ConfigService _config = Requires.NotNull(config, nameof(config));
         private readonly IServiceProvider _services = Requires.NotNull(services, nameof(services));
-        private OutputWindow? _output;
+        private OutputChannel? _output;
 
         /// <inheritdoc />
         public override CommandConfiguration CommandConfiguration => new("%ResxGenerator.VSExtension.GenerateCommand.DisplayName%")
@@ -45,7 +42,7 @@ namespace ResxGenerator.VSExtension.Commands
         /// <inheritdoc />
         public override async Task InitializeAsync(CancellationToken cancellationToken)
         {
-            _output = await Utilities.GetOutputWindowAsync(Extensibility, cancellationToken);
+            _output = await OutputChannelProvider.GetOrCreateAsync(Extensibility);
             await base.InitializeAsync(cancellationToken);
         }
 
@@ -54,17 +51,17 @@ namespace ResxGenerator.VSExtension.Commands
         {
             try
             {
-                var componentModel = await _componentModelProvider
-                    .GetServiceAsync() as IComponentModel
+                var componentModel = await _componentModelProvider.GetServiceAsync() as IComponentModel
                     ?? throw new InvalidOperationException("Unable to get the MEF service.");
 
-                // Roslyn instance
                 var workspace = componentModel.GetService<VisualStudioWorkspace>();
 
-                var projectSnapshot = await context.GetActiveProjectAsync(
-                    x => x.With(p => new { p.Name, p.Path, p.TypeGuid }),
-                    cancellationToken)
-                    ?? throw new InvalidOperationException("No active project found.");
+                var projectSnapshot = await context.GetActiveProjectAsync(x => x.With(p => new
+                {
+                    p.Name,
+                    p.Path,
+                    p.TypeGuid
+                }), cancellationToken) ?? throw new InvalidOperationException("No active project found.");
 
                 if (_config.Exists(projectSnapshot) == false)
                 {
@@ -102,10 +99,10 @@ namespace ResxGenerator.VSExtension.Commands
 
                 await _output.WriteToOutputAsync($"Target languages: {string.Join(", ", config.Languages)}");
 
-                var symbols = await _analyzer.GatherSymbolsAsync(compilation);
-                var strings = await _analyzer.FindStringsAsync(symbols, project.Solution);
+                var symbols = await _analyzer.GatherTargetSymbolsAsync(compilation);
+                var resourceInfos = await _analyzer.FindStringsAsync(symbols, project.Solution, config.ResourceName);
 
-                await _output.WriteToOutputAsync($"Found {strings.Count()} strings.");
+                await _output.WriteToOutputAsync($"Found {resourceInfos.Sum(x => x.Strings.Count())} strings across {resourceInfos.Count()} resource types.");
 
                 ITranslator? translator = config.TranslatorService switch
                 {
@@ -114,67 +111,106 @@ namespace ResxGenerator.VSExtension.Commands
                     _ => null,
                 };
 
-                foreach (var lang in languages)
+                if (translator is null)
                 {
-                    var resxManager = new ResxManager(Path.Combine(projectDir, $"{config.ResourceName}.{lang}.resx"));
+                    await _output.WriteToOutputAsync($"No translator set.");
+                }
+                else
+                {
+                    await _output.WriteToOutputAsync($"Using translator {config.Translator}");
+                }
 
-                    List<ResxElement> resxElements;
-                    if (translator is not null)
+                foreach (var resourceGroup in resourceInfos)
+                {
+                    var strings = resourceGroup.Strings.Select(x => x.Name).ToList();
+
+                    await _output.WriteToOutputAsync($"\n=== Processing resource: {resourceGroup.Name} ({strings.Count()} strings) ===");
+
+                    // Find where this resource type is located
+                    var resxLocation = await _analyzer.GetResourceTypeDirectoryAsync(resourceGroup.Name, project);
+
+                    if (resxLocation is null)
                     {
-                        Dictionary<string, string?> translations;
+                        continue;
+                    }
 
-                        await _output.WriteToOutputAsync($"Translating with {config.Translator}");
-                        var settings = await _config.GetTranslatorConfigAsync(projectSnapshot);
+                    var (resxDirectory, targetProject) = resxLocation.Value;
+                    var isInCurrentProject = targetProject.Id == project.Id;
 
-                        if (config.OverwriteTranslations)
+                    if (!isInCurrentProject)
+                    {
+                        await _output.WriteToOutputAsync($"Note: This is in referenced project '{targetProject.Name}'");
+                    }
+
+                    foreach (var lang in languages)
+                    {
+                        // Create resx in the same directory as the resource type source file
+                        var resxFilePath = Path.Combine(resxDirectory, $"{resourceGroup.Name}.{lang}.resx");
+                        var resxManager = new ResxManager(resxFilePath);
+
+                        List<ResxElement> resxElements;
+                        if (translator is not null)
                         {
-                            translations = await translator.TranslateAsync(settings, neutralLanguage, lang, strings);
+                            Dictionary<string, string?> translations;
+
+                            var settings = await _config.GetTranslatorConfigAsync(projectSnapshot);
+
+                            if (config.OverwriteTranslations)
+                            {
+                                translations = await translator.TranslateAsync(settings, neutralLanguage, lang, strings);
+                            }
+                            else
+                            {
+                                var existingStrings = resxManager
+                                    .EnumerateElements()
+                                    .Where(x => !string.IsNullOrEmpty(x.Value))
+                                    .Select(x => x.Key)
+                                    .ToList();
+
+                                translations = await translator.TranslateAsync(
+                                    settings,
+                                    neutralLanguage,
+                                    lang,
+                                    strings.Where(x => existingStrings.Contains(x, StringComparer.InvariantCultureIgnoreCase) == false).ToList()
+                                );
+                            }
+
+                            foreach (var entry in translations.Where(x => string.IsNullOrEmpty(x.Value)))
+                            {
+                                await _output.WriteToOutputAsync($"Unable to translate value: \"{entry.Key}\" for locale {lang.Name} in {resourceGroup.Name}");
+                            }
+
+                            resxElements = strings.Select(x => new ResxElement(x, translations.GetValueOrDefault(x), null)).ToList();
                         }
                         else
                         {
-                            var existingStrings = resxManager.GetKeysWithValues();
-                            translations = await translator.TranslateAsync(
-                                settings,
-                                neutralLanguage,
-                                lang,
-                                strings.Where(x => existingStrings.Contains(x, StringComparer.InvariantCultureIgnoreCase) == false).ToList()
-                            );
+                            resxElements = strings.Select(x => new ResxElement(x, null, null)).ToList();
                         }
 
-                        foreach (var entry in translations.Where(x => string.IsNullOrEmpty(x.Value)))
+                        if (config.WriteKeyAsValue)
                         {
-                            await _output.WriteToOutputAsync($"Unable to translate value: \"{entry.Key}\" for locale {lang.Name}");
+                            foreach (var element in resxElements.Where(x => string.IsNullOrEmpty(x.Value)))
+                            {
+                                element.Value = element.Key;
+                            }
                         }
 
-                        resxElements = strings.Select(x => new ResxElement(x, translations.GetValueOrDefault(x), null)).ToList();
-                    }
-                    else
-                    {
-                        await _output.WriteToOutputAsync($"No translator used");
-                        resxElements = strings.Select(x => new ResxElement(x, null, null)).ToList();
-                    }
-
-                    if (config.WriteKeyAsValue)
-                    {
-                        foreach (var element in resxElements.Where(x => string.IsNullOrEmpty(x.Value)))
+                        if (string.IsNullOrEmpty(config.ValidationComment) == false)
                         {
-                            element.Value = element.Key;
+                            foreach (var element in resxElements)
+                            {
+                                element.Comment = config.ValidationComment;
+                            }
                         }
-                    }
 
-                    if (string.IsNullOrEmpty(config.ValidationComment) == false)
-                    {
-                        foreach (var element in resxElements)
-                        {
-                            element.Comment = config.ValidationComment;
-                        }
-                    }
+                        resxManager.AddRange(resxElements, config.OverwriteTranslations);
+                        resxManager.Save();
 
-                    resxManager.AddRange(resxElements, config.OverwriteTranslations);
-                    resxManager.Save();
+                        await _output.WriteToOutputAsync($"Updated: {resxFilePath}");
+                    }
                 }
 
-                await _output.WriteToOutputAsync("Command executed.");
+                await _output.WriteToOutputAsync("\n=== Command executed successfully ===");
             }
             catch (Exception e)
             {
@@ -184,6 +220,4 @@ namespace ResxGenerator.VSExtension.Commands
             }
         }
     }
-
-#pragma warning restore VSEXTPREVIEW_OUTPUTWINDOW
 }

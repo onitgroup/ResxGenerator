@@ -9,7 +9,6 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
 
 namespace ResxGenerator.VSExtension.Services
 {
@@ -20,7 +19,7 @@ namespace ResxGenerator.VSExtension.Services
         public const string CONFIG_FILE = "resx-generator.json";
         private readonly VisualStudioExtensibility _extensibility;
         private readonly Task _initializationTask; // probably not needed
-        private OutputWindow? _output;
+        private OutputChannel? _output;
 
         private readonly JsonSerializerOptions _indentedOptions = new()
         {
@@ -35,7 +34,7 @@ namespace ResxGenerator.VSExtension.Services
 
         private async Task InitializeAsync()
         {
-            _output = await Utilities.GetOutputWindowAsync(_extensibility, CancellationToken.None);
+            _output = await OutputChannelProvider.GetOrCreateAsync(_extensibility);
             Assumes.NotNull(_output);
         }
 

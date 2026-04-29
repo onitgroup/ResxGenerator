@@ -34,13 +34,19 @@ namespace ResxGenerator.VSExtension
         };
 
         /// <inheritdoc />
+        protected override Task OnInitializedAsync(VisualStudioExtensibility extensibility, CancellationToken cancellationToken)
+        {
+            return base.OnInitializedAsync(extensibility, cancellationToken);
+        }
         protected override void InitializeServices(IServiceCollection serviceCollection)
         {
             base.InitializeServices(serviceCollection);
 
             // must be scoped
             serviceCollection.AddScoped<ConfigService>();
-            serviceCollection.AddScoped<AnalyzerService>();
+            serviceCollection.AddScoped<IAnalyzerService, AnalyzerService>();
+
+            // this service providers doesn't support keyed services
             serviceCollection.AddScoped<ChatGPTTranslator>();
             serviceCollection.AddScoped<GoogleTranslateTranslator>();
         }

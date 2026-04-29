@@ -2,17 +2,15 @@
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Documents;
 using ResxGenerator.VSExtension.Infrastructure;
-using ResxGenerator.VSExtension.Services;
 using System.Globalization;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Threading;
+
+#pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
 
 namespace ResxGenerator.VSExtension.Translators
 {
-#pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
-
     public class ChatGPTTranslator : ITranslator
     {
         private const int CHUNK_SIZE = 50;
@@ -20,7 +18,7 @@ namespace ResxGenerator.VSExtension.Translators
         public const string TARGET_PLACEHOLDER = "{targetLanguage}";
         private readonly VisualStudioExtensibility _extensibility;
         private readonly Task _initializationTask; // probably not needed
-        private OutputWindow? _output;
+        private OutputChannel? _output;
 
         private readonly JsonSerializerOptions _camelCaseOptions = new()
         {
@@ -35,7 +33,7 @@ namespace ResxGenerator.VSExtension.Translators
 
         private async Task InitializeAsync()
         {
-            _output = await Utilities.GetOutputWindowAsync(_extensibility, CancellationToken.None);
+            _output = await OutputChannelProvider.GetOrCreateAsync(_extensibility);
             Assumes.NotNull(_output);
         }
 
@@ -166,6 +164,4 @@ namespace ResxGenerator.VSExtension.Translators
             public string Content { get; set; } = string.Empty;
         }
     }
-
-#pragma warning restore VSEXTPREVIEW_OUTPUTWINDOW
 }

@@ -1,24 +1,12 @@
 ﻿using Microsoft;
-using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Commands;
 using Microsoft.VisualStudio.Extensibility.Documents;
 using Microsoft.VisualStudio.Extensibility.Shell;
-using Microsoft.VisualStudio.Extensibility.VSSdkCompatibility;
-using Microsoft.VisualStudio.LanguageServices;
 using Microsoft.VisualStudio.ProjectSystem.Query;
 using ResxGenerator.VSExtension.Infrastructure;
-using ResxGenerator.VSExtension.Resx;
 using ResxGenerator.VSExtension.Services;
 using ResxGenerator.VSExtension.Translators;
-using System.Diagnostics;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-using System.Windows.Forms;
 
 namespace ResxGenerator.VSExtension.Commands
 {
@@ -28,7 +16,7 @@ namespace ResxGenerator.VSExtension.Commands
     internal class AddChatGPTConfigCommand(ConfigService config) : Command
     {
         private readonly ConfigService _config = Requires.NotNull(config, nameof(config));
-        private OutputWindow? _output;
+        private OutputChannel? _output;
 
         /// <inheritdoc />
         public override CommandConfiguration CommandConfiguration => new("%ResxGenerator.VSExtension.AddChatGPTConfigCommand.DisplayName%")
@@ -43,7 +31,7 @@ namespace ResxGenerator.VSExtension.Commands
         /// <inheritdoc />
         public override async Task InitializeAsync(CancellationToken cancellationToken)
         {
-            _output = await Utilities.GetOutputWindowAsync(Extensibility, cancellationToken);
+            _output = await OutputChannelProvider.GetOrCreateAsync(Extensibility);
             await base.InitializeAsync(cancellationToken);
         }
 

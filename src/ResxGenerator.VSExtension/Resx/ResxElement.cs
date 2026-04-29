@@ -23,8 +23,8 @@ namespace ResxGenerator.VSExtension.Resx
         public override bool Equals(object obj)
         {
             if (obj is null) return false;
-            if (obj is ResxElement element) return Equals(element);
-            return false;
+            else if (obj is ResxElement element) return Equals(element);
+            else return false;
         }
 
         public bool Equals(ResxElement other)

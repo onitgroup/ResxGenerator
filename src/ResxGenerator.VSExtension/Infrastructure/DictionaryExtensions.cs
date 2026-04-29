@@ -1,11 +1,4 @@
-﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace ResxGenerator.VSExtension.Infrastructure
+﻿namespace ResxGenerator.VSExtension.Infrastructure
 {
     public static class DictionaryExtensions
     {

@@ -1,7 +1,8 @@
 ﻿using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Documents;
-using System.Collections.Frozen;
 using System.Xml.Linq;
+
+#pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
 
 namespace ResxGenerator.VSExtension.Infrastructure
 {
@@ -27,18 +28,5 @@ namespace ResxGenerator.VSExtension.Infrastructure
                 .Select(x => x.Value)
                 .FirstOrDefault();
         }
-
-#pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
-
-        public static async Task<OutputWindow> GetOutputWindowAsync(VisualStudioExtensibility extensibility, CancellationToken cancellationToken)
-        {
-            return await extensibility
-                .Views()
-                .Output
-                .GetChannelAsync(nameof(ExtensionEntrypoint), nameof(Resources.OutputWindowDisplayName), cancellationToken);
-        }
-
-#pragma warning restore VSEXTPREVIEW_OUTPUTWINDOW
-
     }
 }

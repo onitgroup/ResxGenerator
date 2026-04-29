@@ -16,7 +16,7 @@ namespace ResxGenerator.VSExtension.Resx
         {
             _resourceFilePath = resourceFullPath;
 
-            if (File.Exists(_resourceFilePath) == false)
+            if (!File.Exists(_resourceFilePath))
                 CreateNewResxFile();
 
             _xd = XDocument.Load(_resourceFilePath);
@@ -33,21 +33,18 @@ namespace ResxGenerator.VSExtension.Resx
             resxTemplate.CopyTo(file);
         }
 
-        public IEnumerable<string> GetKeysWithValues()
+        public IEnumerable<ResxElement> EnumerateElements()
         {
             if (_xd.Root is null) throw new InvalidOperationException("XML root element is null");
 
-            return _xd.Root
-                .Descendants("data")
-                .Where(x =>
-                {
-                    var value = x.Descendants("value").FirstOrDefault();
-                    return x.Attribute("name") is not null &&
-                           value is not null &&
-                           string.IsNullOrEmpty(value.Value) == false;
-                })
-                .Select(x => x.Attribute("name")!.Value)
-                .ToList();
+            foreach (var element in _xd.Root.Descendants("data").Where(x => x.Attribute("name") is not null))
+            {
+                yield return new ResxElement(
+                    element.Attribute("name")!.Value,
+                    element.Descendants("value").FirstOrDefault()?.Value,
+                    element.Descendants("comment").FirstOrDefault()?.Value
+                );
+            }
         }
 
         /// <summary>
@@ -92,7 +89,7 @@ namespace ResxGenerator.VSExtension.Resx
                         {
                             existingElement.Add(new XElement("comment", e.Comment));
                         }
-                        else if(string.IsNullOrEmpty(e.Comment) == false)
+                        else if (string.IsNullOrEmpty(e.Comment) == false)
                         {
                             comment.Value = e.Comment;
                         }

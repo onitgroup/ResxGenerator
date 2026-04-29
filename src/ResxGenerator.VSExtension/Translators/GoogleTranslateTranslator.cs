@@ -5,22 +5,20 @@ using ResxGenerator.VSExtension.Infrastructure;
 using ResxGenerator.VSExtension.Services;
 using System.Globalization;
 using System.Net.Http;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using System;
+
+#pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
 
 namespace ResxGenerator.VSExtension.Translators
 {
-#pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
-
     public class GoogleTranslateTranslator : ITranslator
     {
         private const int CHUNK_SIZE = 50;
         private readonly ConfigService _config;
         private readonly VisualStudioExtensibility _extensibility;
         private readonly Task _initializationTask; // probably not needed
-        private OutputWindow? _output;
+        private OutputChannel? _output;
 
         public GoogleTranslateTranslator(ConfigService config, VisualStudioExtensibility extensibility)
         {
@@ -31,14 +29,14 @@ namespace ResxGenerator.VSExtension.Translators
 
         private async Task InitializeAsync()
         {
-            _output = await Utilities.GetOutputWindowAsync(_extensibility, CancellationToken.None);
+            _output = await OutputChannelProvider.GetOrCreateAsync(_extensibility);
             Assumes.NotNull(_output);
         }
 
         public async Task<Dictionary<string, string?>> TranslateAsync(ITranslatorSettings? _, CultureInfo source, CultureInfo target, IEnumerable<string> values)
         {
             var res = new Dictionary<string, string?>();
-           
+
             foreach (var value in values)
             {
                 res[value] = null;
@@ -90,6 +88,4 @@ namespace ResxGenerator.VSExtension.Translators
             return res;
         }
     }
-
-#pragma warning restore VSEXTPREVIEW_OUTPUTWINDOW
 }
