@@ -2,40 +2,24 @@
 
 namespace ResxGenerator.VSExtension.Resx
 {
-    [DebuggerDisplay("Key = {Key} Value = {Value} Comment = {Comment}")]
-    public class ResxElement(string key, string? value, string? comment) : IEquatable<ResxElement>
+    public record ResxElement(string key, string? value, string? comment)
     {
-        /// <summary>
-        /// Resource key
-        /// </summary>
         public string Key { get; set; } = key;
 
-        /// <summary>
-        /// Resource value
-        /// </summary>
         public string? Value { get; set; } = value;
 
-        /// <summary>
-        /// Resource comment
-        /// </summary>
         public string? Comment { get; set; } = comment;
 
-        public override bool Equals(object obj)
-        {
-            if (obj is null) return false;
-            else if (obj is ResxElement element) return Equals(element);
-            else return false;
-        }
-
-        public bool Equals(ResxElement other)
+        public virtual bool Equals(ResxElement? other)
         {
             if (other is null) return false;
-            return other.Key.Equals(Key, StringComparison.InvariantCultureIgnoreCase);
+            if (ReferenceEquals(this, other)) return true;
+            return string.Equals(Key, other.Key, StringComparison.InvariantCultureIgnoreCase);
         }
 
         public override int GetHashCode()
         {
-            return Key.ToLower().GetHashCode();
+            return StringComparer.InvariantCultureIgnoreCase.GetHashCode(Key);
         }
     }
 }

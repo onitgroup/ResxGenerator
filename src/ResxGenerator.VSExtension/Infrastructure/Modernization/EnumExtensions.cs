@@ -1,13 +1,16 @@
 ﻿using System.ComponentModel;
-using System.Reflection;
 
-namespace ResxGenerator.VSExtension.Infrastructure
+namespace ResxGenerator.VSExtension.Infrastructure.Modernization
 {
     public static class EnumExtensions
     {
-        public static T? GetValueFromDescription<T>(this string? description) where T : struct, Enum
+        public static T? ParseWithDescription<T>(this string? description) where T : struct, Enum
         {
-            if (description is null) return null;
+            if (description is null)
+            {
+                return null;
+            }
+
             foreach (var field in typeof(T).GetFields())
             {
                 if (Attribute.GetCustomAttribute(field, typeof(DescriptionAttribute)) is DescriptionAttribute attribute)
@@ -27,10 +30,10 @@ namespace ResxGenerator.VSExtension.Infrastructure
 
         public static string GetDescription<T>(this T enumerationValue) where T : struct, Enum
         {
-            MemberInfo[] member = typeof(T).GetMember(enumerationValue.ToString());
+            var member = typeof(T).GetMember(enumerationValue.ToString());
             if (member.Length != 0)
             {
-                object[] customAttributes = member[0].GetCustomAttributes(typeof(DescriptionAttribute), inherit: false);
+                var customAttributes = member[0].GetCustomAttributes(typeof(DescriptionAttribute), inherit: false);
                 if (customAttributes.Length != 0)
                 {
                     return ((DescriptionAttribute)customAttributes[0]).Description;

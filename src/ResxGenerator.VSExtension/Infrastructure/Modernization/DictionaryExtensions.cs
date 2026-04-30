@@ -1,4 +1,4 @@
-﻿namespace ResxGenerator.VSExtension.Infrastructure
+﻿namespace ResxGenerator.VSExtension.Infrastructure.Modernization
 {
     public static class DictionaryExtensions
     {

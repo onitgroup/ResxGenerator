@@ -21,7 +21,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
                 if (_instance is not null)
                     return _instance;
 
-                _instance = await extensibility.Views().Output.CreateOutputChannelAsync(nameof(Resources.OutputWindowDisplayName), cancellationToken);
+                _instance = await extensibility.Views().Output.CreateOutputChannelAsync(Resources.OutputWindowDisplayName, cancellationToken);
 
                 return _instance;
             }

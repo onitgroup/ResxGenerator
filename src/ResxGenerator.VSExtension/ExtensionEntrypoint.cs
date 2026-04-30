@@ -2,7 +2,7 @@
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Commands;
 using ResxGenerator.VSExtension.Commands;
-using ResxGenerator.VSExtension.Services;
+using ResxGenerator.VSExtension.Infrastructure;
 using ResxGenerator.VSExtension.Translators;
 using System.Resources;
 
@@ -28,6 +28,7 @@ namespace ResxGenerator.VSExtension
             Placements = [CommandPlacement.KnownPlacements.ExtensionsMenu],
             Children = [
                 MenuChild.Command<GenerateCommand>(),
+                MenuChild.Command<ExportToExcelCommand>(),
                 MenuChild.Separator,
                 MenuChild.Command<AddChatGPTConfigCommand>(),
             ],
@@ -43,8 +44,9 @@ namespace ResxGenerator.VSExtension
             base.InitializeServices(serviceCollection);
 
             // must be scoped
-            serviceCollection.AddScoped<ConfigService>();
+            serviceCollection.AddScoped<ConfigurationService>();
             serviceCollection.AddScoped<IAnalyzerService, AnalyzerService>();
+            serviceCollection.AddScoped<IExcelManager, ExcelManager>();
 
             // this service providers doesn't support keyed services
             serviceCollection.AddScoped<ChatGPTTranslator>();

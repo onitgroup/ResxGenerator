@@ -6,12 +6,11 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Documents;
 using Microsoft.VisualStudio.Extensibility.Helpers;
-using ResxGenerator.VSExtension.Infrastructure;
 using System.IO;
 
 #pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
 
-namespace ResxGenerator.VSExtension.Services
+namespace ResxGenerator.VSExtension.Infrastructure
 {
     public interface IAnalyzerService
     {
@@ -39,6 +38,8 @@ namespace ResxGenerator.VSExtension.Services
         /// <param name="currentProject"></param>
         /// <returns></returns>
         Task<(string DirectoryPath, Project Project)?> GetResourceTypeDirectoryAsync(string resourceTypeName, Project currentProject);
+
+        Task<(string FilePath, Project Project)?> FindResourceTypeLocationAsync(string typeName, Project project);
     }
 
     public class AnalyzerService : DisposableObject, IAnalyzerService
@@ -146,62 +147,6 @@ namespace ResxGenerator.VSExtension.Services
 
             var typeInfo = semanticModel.GetTypeInfo(typeOfExpression.Type);
             return typeInfo.Type?.Name;
-        }
-
-        /// <summary>
-        /// Finds the source file location for a given type name across the solution
-        /// </summary>
-        /// <param name="typeName">The type name to search for (e.g., "SharedResource")</param>
-        /// <param name="project">The projects which contains the file</param>
-        /// <returns>Tuple of (file path, project) or null if not found</returns>
-        private async Task<(string FilePath, Project Project)?> FindResourceTypeLocationAsync(string typeName, Project project)
-        {
-            // Search in the current project
-            var compilation = await project.GetCompilationAsync();
-            if (compilation is not null)
-            {
-                var typeSymbol = compilation.GetTypeByMetadataName(typeName);
-                if (typeSymbol is null)
-                {
-                    // Try searching by name in all types (in case of namespace differences)
-                    var allTypes = compilation.GetSymbolsWithName(typeName, SymbolFilter.Type);
-                    typeSymbol = allTypes.OfType<INamedTypeSymbol>().FirstOrDefault(); // take the first
-                }
-
-                if (typeSymbol is not null && typeSymbol.Locations.FirstOrDefault() is Location location && location.IsInSource)
-                {
-                    return (location.SourceTree.FilePath, project);
-                }
-            }
-
-            // If not found in current project, search in referenced projects
-            var referencedProjects = project.ProjectReferences
-                .Select(x => project.Solution.GetProject(x.ProjectId))
-                .Where(x => x is not null)
-                .Cast<Project>();
-
-            foreach (var referencedProject in referencedProjects)
-            {
-                var refCompilation = await referencedProject.GetCompilationAsync();
-                if (refCompilation is null)
-                {
-                    continue;
-                }
-
-                var typeSymbol = refCompilation.GetTypeByMetadataName(typeName);
-                if (typeSymbol is null)
-                {
-                    var allTypes = refCompilation.GetSymbolsWithName(typeName, SymbolFilter.Type);
-                    typeSymbol = allTypes.OfType<INamedTypeSymbol>().FirstOrDefault();
-                }
-
-                if (typeSymbol is not null && typeSymbol.Locations.FirstOrDefault() is Location location && location.IsInSource)
-                {
-                    return (location.SourceTree.FilePath, referencedProject);
-                }
-            }
-
-            return null; // external assembly
         }
 
         // <inheritdoc />
@@ -474,6 +419,62 @@ namespace ResxGenerator.VSExtension.Services
 
             await _output.WriteToOutputAsync($"Resource type '{resourceTypeName}' found at: {location.Value.FilePath}");
             return (directory, location.Value.Project);
+        }
+
+        /// <summary>
+        /// Finds the source file location for a given type name across the solution
+        /// </summary>
+        /// <param name="typeName">The type name to search for (e.g., "SharedResource")</param>
+        /// <param name="project">The projects which contains the file</param>
+        /// <returns>Tuple of (file path, project) or null if not found</returns>
+        public async Task<(string FilePath, Project Project)?> FindResourceTypeLocationAsync(string typeName, Project project)
+        {
+            // Search in the current project
+            var compilation = await project.GetCompilationAsync();
+            if (compilation is not null)
+            {
+                var typeSymbol = compilation.GetTypeByMetadataName(typeName);
+                if (typeSymbol is null)
+                {
+                    // Try searching by name in all types (in case of namespace differences)
+                    var allTypes = compilation.GetSymbolsWithName(typeName, SymbolFilter.Type);
+                    typeSymbol = allTypes.OfType<INamedTypeSymbol>().FirstOrDefault(); // take the first
+                }
+
+                if (typeSymbol is not null && typeSymbol.Locations.FirstOrDefault() is Location location && location.IsInSource)
+                {
+                    return (location.SourceTree.FilePath, project);
+                }
+            }
+
+            // If not found in current project, search in referenced projects
+            var referencedProjects = project.ProjectReferences
+                .Select(x => project.Solution.GetProject(x.ProjectId))
+                .Where(x => x is not null)
+                .Cast<Project>();
+
+            foreach (var referencedProject in referencedProjects)
+            {
+                var refCompilation = await referencedProject.GetCompilationAsync();
+                if (refCompilation is null)
+                {
+                    continue;
+                }
+
+                var typeSymbol = refCompilation.GetTypeByMetadataName(typeName);
+                if (typeSymbol is null)
+                {
+                    var allTypes = refCompilation.GetSymbolsWithName(typeName, SymbolFilter.Type);
+                    typeSymbol = allTypes.OfType<INamedTypeSymbol>().FirstOrDefault();
+                }
+
+                if (typeSymbol is not null && typeSymbol.Locations.FirstOrDefault() is Location location && location.IsInSource)
+                {
+                    return (location.SourceTree.FilePath, referencedProject);
+                }
+            }
+
+            return null; // external assembly
         }
     }
 

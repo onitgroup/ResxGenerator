@@ -132,5 +132,10 @@ namespace ResxGenerator.VSExtension.Resx
         {
             _xd.Save(_resourceFilePath);
         }
+
+        public static ResxManager Load(string resourceFullPath)
+        {
+            return new ResxManager(resourceFullPath);
+        }
     }
 }

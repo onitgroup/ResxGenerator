@@ -5,17 +5,16 @@ using Microsoft.VisualStudio.Extensibility.Documents;
 using Microsoft.VisualStudio.Extensibility.Shell;
 using Microsoft.VisualStudio.ProjectSystem.Query;
 using ResxGenerator.VSExtension.Infrastructure;
-using ResxGenerator.VSExtension.Services;
 using ResxGenerator.VSExtension.Translators;
+
+#pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
 
 namespace ResxGenerator.VSExtension.Commands
 {
-#pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
-
     [VisualStudioContribution]
-    internal class AddChatGPTConfigCommand(ConfigService config) : Command
+    internal class AddChatGPTConfigCommand(IConfigurationService configuration) : Command
     {
-        private readonly ConfigService _config = Requires.NotNull(config, nameof(config));
+        private readonly IConfigurationService _configuration = Requires.NotNull(configuration, nameof(configuration));
         private OutputChannel? _output;
 
         /// <inheritdoc />
@@ -45,12 +44,11 @@ namespace ResxGenerator.VSExtension.Commands
                     cancellationToken)
                     ?? throw new InvalidOperationException("No active project found.");
 
-                if (_config.Exists(projectSnapshot) == false)
+                if (!_configuration.TryGet(projectSnapshot, out var config))
                 {
-                    await _config.AddDefaultConfigFileAsync(projectSnapshot);
+                    _configuration.AddDefault(projectSnapshot);
+                    throw new InvalidOperationException("No configuration file was found, a new one was created, please relaunch the command.");
                 }
-
-                var config = await _config.GetAsync(projectSnapshot);
 
                 if (config.ChatGPT is not null)
                 {
@@ -61,13 +59,13 @@ namespace ResxGenerator.VSExtension.Commands
                     config.Translator = TranslatorService.ChatGPT.GetDescription();
                     config.ChatGPT = new ChatGPTTranslator.Settings
                     {
-                        Token = "",
+                        Token = "<api-key>",
                         Model = "gpt-3.5-turbo",
                         Prompt = $"Translate the values of this JSON object from this locale {ChatGPTTranslator.SOURCE_PLACEHOLDER} to this locale {ChatGPTTranslator.TARGET_PLACEHOLDER} preserving its keys",
                     };
                 }
 
-                await _config.UpdateAsync(projectSnapshot, config);
+                _configuration.Update(projectSnapshot, config);
 
                 await _output.WriteToOutputAsync("Command executed.");
             }
@@ -79,6 +77,4 @@ namespace ResxGenerator.VSExtension.Commands
             }
         }
     }
-
-#pragma warning restore VSEXTPREVIEW_OUTPUTWINDOW
 }

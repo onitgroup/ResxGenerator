@@ -82,6 +82,7 @@ namespace ResxGenerator.VSExtension.Translators
 
                         var response = await client.PostAsync("https://api.openai.com/v1/chat/completions", content);
                         response.EnsureSuccessStatusCode();
+
                         var data = await JsonSerializer.DeserializeAsync<TranslateResponse>(await response.Content.ReadAsStreamAsync(), _camelCaseOptions);
                         if (data is null || data.Choices.Count() == 0)
                         {
