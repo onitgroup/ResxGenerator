@@ -12,8 +12,9 @@ using ResxGenerator.VSExtension.Translators;
 namespace ResxGenerator.VSExtension.Commands
 {
     [VisualStudioContribution]
-    internal class AddChatGPTConfigCommand(IConfigurationService configuration) : Command
+    internal class AddChatGPTConfigCommand(ContextBuilder contextBuilder, IConfigurationService configuration) : Command
     {
+        private readonly ContextBuilder _contextBuilder = Requires.NotNull(contextBuilder, nameof(contextBuilder));
         private readonly IConfigurationService _configuration = Requires.NotNull(configuration, nameof(configuration));
         private OutputChannel? _output;
 
@@ -39,25 +40,18 @@ namespace ResxGenerator.VSExtension.Commands
         {
             try
             {
-                var projectSnapshot = await context.GetActiveProjectAsync(
-                    x => x.With(p => new { p.Name, p.Path, p.TypeGuid }),
-                    cancellationToken)
-                    ?? throw new InvalidOperationException("No active project found.");
+                await _output.WriteToOutputAsync("\n=== Adding ChatGPT Configuration ===");
 
-                if (!_configuration.TryGet(projectSnapshot, out var config))
-                {
-                    _configuration.AddDefault(projectSnapshot);
-                    throw new InvalidOperationException("No configuration file was found, a new one was created, please relaunch the command.");
-                }
+                var prjCtx = await _contextBuilder.BuildProjectContextAsync(context);
 
-                if (config.ChatGPT is not null)
+                if (prjCtx.Config.ChatGPT is not null)
                 {
                     throw new InvalidOperationException("A configuration already exists, aborting.");
                 }
                 else
                 {
-                    config.Translator = TranslatorService.ChatGPT.GetDescription();
-                    config.ChatGPT = new ChatGPTTranslator.Settings
+                    prjCtx.Config.Translator = TranslatorService.ChatGPT.GetDescription();
+                    prjCtx.Config.ChatGPT = new ChatGPTTranslator.Settings
                     {
                         Token = "<api-key>",
                         Model = "gpt-3.5-turbo",
@@ -65,9 +59,9 @@ namespace ResxGenerator.VSExtension.Commands
                     };
                 }
 
-                _configuration.Update(projectSnapshot, config);
+                _configuration.Update(prjCtx.Directory, prjCtx.Config);
 
-                await _output.WriteToOutputAsync("Command executed.");
+                await _output.WriteToOutputAsync("\n=== Command executed successfully ===");
             }
             catch (Exception e)
             {

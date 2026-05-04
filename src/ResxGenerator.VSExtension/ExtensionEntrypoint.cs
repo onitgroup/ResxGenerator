@@ -28,7 +28,9 @@ namespace ResxGenerator.VSExtension
             Placements = [CommandPlacement.KnownPlacements.ExtensionsMenu],
             Children = [
                 MenuChild.Command<GenerateCommand>(),
+                MenuChild.Separator,
                 MenuChild.Command<ExportToExcelCommand>(),
+                MenuChild.Command<ImportFromExcelCommand>(),
                 MenuChild.Separator,
                 MenuChild.Command<AddChatGPTConfigCommand>(),
             ],
@@ -44,7 +46,8 @@ namespace ResxGenerator.VSExtension
             base.InitializeServices(serviceCollection);
 
             // must be scoped
-            serviceCollection.AddScoped<ConfigurationService>();
+            serviceCollection.AddScoped<ContextBuilder>();
+            serviceCollection.AddScoped<IConfigurationService, ConfigurationService>();
             serviceCollection.AddScoped<IAnalyzerService, AnalyzerService>();
             serviceCollection.AddScoped<IExcelManager, ExcelManager>();
 

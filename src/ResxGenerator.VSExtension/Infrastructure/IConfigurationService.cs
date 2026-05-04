@@ -1,7 +1,4 @@
-﻿using Microsoft;
-using Microsoft.VisualStudio.Extensibility;
-using Microsoft.VisualStudio.Extensibility.Documents;
-using Microsoft.VisualStudio.ProjectSystem.Query;
+﻿using Microsoft.VisualStudio.ProjectSystem.Query;
 using ResxGenerator.VSExtension.Translators;
 using System.ComponentModel;
 using System.Globalization;
@@ -14,13 +11,17 @@ namespace ResxGenerator.VSExtension.Infrastructure
 {
     public interface IConfigurationService
     {
-        bool TryGet(IProjectSnapshot snapshot, [NotNullWhen(true)] out Config? config);
+        bool TryGet(string projectDirectory, [NotNullWhen(true)] out Config? config);
 
-        void AddDefault(IProjectSnapshot snapshot);
+        void AddDefault(string projectDirectory);
 
-        void Update(IProjectSnapshot snapshot, Config config);
+        void Update(string projectDirectory, Config config);
 
-        bool TryGetNeutralCulture(IProjectSnapshot snapshot, [NotNullWhen(true)] out CultureInfo? neutralLanguage);
+        bool TryGetNeutralCulture(string projectPath, [NotNullWhen(true)] out CultureInfo? neutralLanguage);
+
+        public IEnumerable<(string FilePath, string Culture)> DefaultResourceFiles(string projectDirectory);
+
+        public string DefaultResourceFile(string projectDirectory, string culture);
     }
 
     public class ConfigurationService : IConfigurationService
@@ -32,26 +33,26 @@ namespace ResxGenerator.VSExtension.Infrastructure
             WriteIndented = true,
         };
 
-        private FileInfo GetConfigFileInfo(IProjectSnapshot snapshot)
+        private FileInfo GetConfigFileInfo(string projectDirectory)
         {
-            return new FileInfo(Path.Combine(Path.GetDirectoryName(snapshot.Path)!, CONFIG_FILE_NAME));
+            return new FileInfo(Path.Combine(projectDirectory, CONFIG_FILE_NAME));
         }
 
-        public void AddDefault(IProjectSnapshot snapshot)
+        public void AddDefault(string projectDirectory)
         {
-            var configFile = GetConfigFileInfo(snapshot);
+            var configFile = GetConfigFileInfo(projectDirectory);
             if (configFile.Exists)
             {
                 throw new InvalidOperationException($"Config file already exists at {configFile.FullName}");
             }
             var config = Config.Default;
-            using var writeStream = new FileStream(configFile.FullName, FileMode.OpenOrCreate);
-            JsonSerializer.Serialize(writeStream, config, _indentedOptions);
+            using var stream = new FileStream(configFile.FullName, FileMode.CreateNew);
+            JsonSerializer.Serialize(stream, config, _indentedOptions);
         }
 
-        public bool TryGet(IProjectSnapshot snapshot, [NotNullWhen(true)] out Config? config)
+        public bool TryGet(string projectDirectory, [NotNullWhen(true)] out Config? config)
         {
-            var configFile = GetConfigFileInfo(snapshot);
+            var configFile = GetConfigFileInfo(projectDirectory);
             if (!configFile.Exists)
             {
                 config = null;
@@ -63,28 +64,51 @@ namespace ResxGenerator.VSExtension.Infrastructure
             return config is not null;
         }
 
-        public void Update(IProjectSnapshot snapshot, Config config)
+        public void Update(string projectDirectory, Config config)
         {
-            var configFile = GetConfigFileInfo(snapshot);
-            using var writeStream = new FileStream(configFile.FullName, FileMode.OpenOrCreate);
-            JsonSerializer.Serialize(writeStream, config, _indentedOptions);
+            var configFile = GetConfigFileInfo(projectDirectory);
+            using var stream = new FileStream(configFile.FullName, FileMode.Create);
+            JsonSerializer.Serialize(stream, config, _indentedOptions);
         }
 
-        public bool TryGetNeutralCulture(IProjectSnapshot snapshot, [NotNullWhen(true)] out CultureInfo? neutralLanguage)
+        public bool TryGetNeutralCulture(string projectPath, [NotNullWhen(true)] out CultureInfo? neutralLanguage)
         {
-            if (string.IsNullOrEmpty(snapshot.Path))
+            if (string.IsNullOrEmpty(projectPath))
             {
                 neutralLanguage = null;
                 return false;
             }
 
-            var document = XDocument.Load(snapshot.Path);
+            var document = XDocument.Load(projectPath);
             neutralLanguage = document.Root?
                 .Descendants("NeutralLanguage")
                 .Select(x => new CultureInfo(x.Value))
                 .FirstOrDefault();
 
             return neutralLanguage is not null;
+        }
+
+        public IEnumerable<(string FilePath, string Culture)> DefaultResourceFiles(string projectDirectory)
+        {
+            if (!TryGet(projectDirectory, out var config))
+            {
+                yield break;
+            }
+
+            foreach (var culture in config.Cultures)
+            {
+                yield return (Path.Combine(projectDirectory, $"{config.DefaultResourceName}.{culture.Name}.resx"), culture.Name);
+            }
+        }
+
+        public string DefaultResourceFile(string projectDirectory, string culture)
+        {
+            if (!TryGet(projectDirectory, out var config))
+            {
+                throw new InvalidOperationException("Unable to get the configuration");
+            }
+
+            return Path.Combine(projectDirectory, $"{config.DefaultResourceName}.{culture}.resx");
         }
     }
 
@@ -146,5 +170,25 @@ namespace ResxGenerator.VSExtension.Infrastructure
             Languages = [],
             Translator = string.Empty,
         };
+
+        public static string BuildResxFileName(string resourceName, string culture)
+        {
+            return $"{resourceName}.{culture}.resx";
+        }
+
+        public static string BuildCatchAllResxFileName(string resourceName)
+        {
+            return $"{resourceName}.*.resx";
+        }
+
+        public static bool TryParseCultureFromResxFileName(string fileName, [NotNullWhen(true)] out string? culture)
+        {
+            var parts = Path.GetFileNameWithoutExtension(fileName).Split('.'); // "SharedResource.it-IT"
+            culture = parts.Length > 1
+                ? parts.Last()
+                : null;
+
+            return !string.IsNullOrEmpty(culture);
+        }
     }
 }

@@ -14,12 +14,12 @@ namespace ResxGenerator.VSExtension.Translators
     public class GoogleTranslateTranslator : ITranslator
     {
         private const int CHUNK_SIZE = 50;
-        private readonly ConfigurationService _config;
+        private readonly IConfigurationService _config;
         private readonly VisualStudioExtensibility _extensibility;
         private readonly Task _initializationTask; // probably not needed
         private OutputChannel? _output;
 
-        public GoogleTranslateTranslator(ConfigurationService config, VisualStudioExtensibility extensibility)
+        public GoogleTranslateTranslator(IConfigurationService config, VisualStudioExtensibility extensibility)
         {
             _config = config;
             _extensibility = Requires.NotNull(extensibility, nameof(extensibility));

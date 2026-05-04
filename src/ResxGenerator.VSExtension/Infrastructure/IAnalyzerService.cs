@@ -29,17 +29,19 @@ namespace ResxGenerator.VSExtension.Infrastructure
         /// <param name="symbols">The symbols to search</param>
         /// <param name="solution">The solution to search in</param>
         /// <returns>Dictionary mapping resource type names to their strings</returns>
-        Task<IEnumerable<ResourceTypeInfo>> FindStringsAsync(IEnumerable<ISymbol> symbols, Solution solution, string defaultResourceType);
+        Task<IEnumerable<ResourceType>> FindStringsAsync(IEnumerable<ISymbol> symbols, Solution solution, string defaultResourceType);
 
         /// <summary>
         /// Gets the directory path where resx files should be created for a given resource type
         /// </summary>
-        /// <param name="resourceTypeName"></param>
+        /// <param name="type"></param>
         /// <param name="currentProject"></param>
         /// <returns></returns>
-        Task<(string DirectoryPath, Project Project)?> GetResourceTypeDirectoryAsync(string resourceTypeName, Project currentProject);
+        Task<(string DirectoryPath, Project Project)?> GetResourceTypeDirectoryAsync(ITypeSymbol type, Project currentProject);
 
-        Task<(string FilePath, Project Project)?> FindResourceTypeLocationAsync(string typeName, Project project);
+        Task<(string DirectoryPath, Project Project)?> GetResourceTypeDirectoryAsync(string typeName, Project currentProject);
+
+        Task<(string FilePath, Project Project)?> FindResourceTypeLocationAsync(ITypeSymbol type, Project project);
     }
 
     public class AnalyzerService : DisposableObject, IAnalyzerService
@@ -47,6 +49,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
         private readonly VisualStudioExtensibility _extensibility;
         private OutputChannel? _output;
         private readonly Task _initializationTask; // probably not needed
+
 
         public AnalyzerService(VisualStudioExtensibility extensibility)
         {
@@ -81,7 +84,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
         /// <param name="node">The syntax node MUST containing the indexer call</param>
         /// <param name="semanticModel">The semantic model for symbol resolution</param>
         /// <returns>The name of the resource type (e.g., "SharedResource") or null if not found</returns>
-        private static string? FindResourceType(BracketedArgumentListSyntax node, SemanticModel semanticModel)
+        private static ITypeSymbol? FindResourceType(BracketedArgumentListSyntax node, SemanticModel semanticModel)
         {
             // Find the member access or identifier that contains the indexer
             var memberAccess = node.AncestorsAndSelf()
@@ -117,8 +120,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
                 return null;
             }
 
-            var typeArgument = namedType.TypeArguments.FirstOrDefault();
-            return typeArgument?.Name;
+            return namedType.TypeArguments.FirstOrDefault();
         }
 
         /// <summary>
@@ -127,7 +129,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
         /// <param name="attributeSyntax">The attribute syntax node</param>
         /// <param name="semanticModel">The semantic model for symbol resolution</param>
         /// <returns>The name of the resource type or null if not found</returns>
-        private static string? FindResourceType(AttributeSyntax attributeSyntax, SemanticModel semanticModel)
+        private static ITypeSymbol? FindResourceType(AttributeSyntax attributeSyntax, SemanticModel semanticModel)
         {
             if (attributeSyntax.ArgumentList is null)
             {
@@ -145,8 +147,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
                 return null;
             }
 
-            var typeInfo = semanticModel.GetTypeInfo(typeOfExpression.Type);
-            return typeInfo.Type?.Name;
+            return semanticModel.GetTypeInfo(typeOfExpression.Type).Type;
         }
 
         // <inheritdoc />
@@ -274,10 +275,10 @@ namespace ResxGenerator.VSExtension.Infrastructure
         }
 
         // <inheritdoc />
-        public async Task<IEnumerable<ResourceTypeInfo>> FindStringsAsync(IEnumerable<ISymbol> symbols, Solution solution, string defaultResourceType)
+        public async Task<IEnumerable<ResourceType>> FindStringsAsync(IEnumerable<ISymbol> symbols, Solution solution, string defaultResourceType)
         {
             // Dictionary: ResourceType -> List of strings
-            var resultsByResource = new Dictionary<string, List<string?>>(StringComparer.OrdinalIgnoreCase);
+            var strings = new List<(ITypeSymbol? Type, IEnumerable<string> Strings)>();
 
             foreach (var symbol in symbols)
             {
@@ -291,18 +292,24 @@ namespace ResxGenerator.VSExtension.Infrastructure
                         var doc = location.Document;
 
                         var syntaxTree = await doc.GetSyntaxRootAsync();
-                        if (syntaxTree is null) continue;
+                        if (syntaxTree is null)
+                        {
+                            continue;
+                        }
 
                         var semanticModel = await doc.GetSemanticModelAsync();
-                        if (semanticModel is null) continue;
+                        if (semanticModel is null)
+                        {
+                            continue;
+                        }
 
                         var reference = syntaxTree
                             .DescendantNodes()
                             .Where(x => x.GetLocation().SourceSpan.Start == spanStart)
                             .FirstOrDefault();
 
-                        string? resourceType = null;
-                        List<string?> stringsToAdd = new();
+                        ITypeSymbol? resourceType = null;
+                        List<string?> stringsToAdd = [];
 
                         switch (reference)
                         {
@@ -323,13 +330,6 @@ namespace ResxGenerator.VSExtension.Infrastructure
                                     // Try to get resource type from the attribute itself
                                     resourceType = FindResourceType(attributeSyntax, semanticModel);
 
-                                    // If no resource type specified, use default
-
-                                    if (resourceType is null)
-                                    {
-                                        resourceType ??= defaultResourceType;
-                                    }
-
                                     foreach (var argument in attributeSyntax.ArgumentList?.Arguments ?? [])
                                     {
                                         stringsToAdd.Add(ParseText(argument.Expression));
@@ -349,19 +349,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
                             continue;
                         }
 
-                        // Use default if we couldn't determine the resource type
-                        if (resourceType is null)
-                        {
-                            resourceType ??= defaultResourceType;
-                        }
-
-                        // Add to the dictionary
-                        if (!resultsByResource.ContainsKey(resourceType))
-                        {
-                            resultsByResource[resourceType] = [];
-                        }
-
-                        resultsByResource[resourceType].AddRange(stringsToAdd);
+                        strings.Add((resourceType, stringsToAdd.OfType<string>()));
 
                         var line = location.Location.GetLineSpan().StartLinePosition.Line;
                         var docText = await doc.GetTextAsync();
@@ -370,66 +358,49 @@ namespace ResxGenerator.VSExtension.Infrastructure
                 }
             }
 
-            // Clean up and return: remove nulls, duplicates, and sort
-            List<ResourceTypeInfo> res = [];
-            foreach (var source in resultsByResource)
-            {
-                var strings = source.Value
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Select(x => x!)
-                    .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(x => x.Key)
-                    .Select(x => new ResourceStringInfo
-                    {
-                        Name = x.Key,
-                        Occurrences = x.Count()
-                    })
-                    .ToList();
-
-                if (strings.Any())
+            return strings
+                .GroupBy(x => x.Type, SymbolEqualityComparer.Default)
+                .Select(x => new ResourceType
                 {
-                    res.Add(new ResourceTypeInfo
-                    {
-                        Name = source.Key,
-                        Strings = strings
-                    });
-                }
-            }
-
-            return res;
+                    Type = (ITypeSymbol?)x.Key,
+                    Strings = x
+                            .SelectMany(y => y.Strings)
+                            .Where(y => !string.IsNullOrWhiteSpace(y))
+                            .GroupBy(y => y)
+                            .OrderBy(y => y.Key)
+                            .Select(y => new ResourceString
+                            {
+                                Name = y.Key,
+                                Occurrences = y.Count()
+                            })
+                })
+                .ToList();
         }
 
         // <inheritdoc />
-        public async Task<(string DirectoryPath, Project Project)?> GetResourceTypeDirectoryAsync(string resourceTypeName, Project currentProject)
+        public async Task<(string DirectoryPath, Project Project)?> GetResourceTypeDirectoryAsync(ITypeSymbol type, Project currentProject)
         {
-            var location = await FindResourceTypeLocationAsync(resourceTypeName, currentProject);
+            var location = await FindResourceTypeLocationAsync(type, currentProject);
 
             if (location is null)
             {
-                await _output.WriteToOutputAsync($"Resource type '{resourceTypeName}' not found in current project or in the referenced projects, skipping.");
+                await _output.WriteToOutputAsync($"Resource type '{type.ToFullyQualifiedName()}' not found in current project or in the referenced projects, skipping.");
                 return null;
             }
 
             var directory = Path.GetDirectoryName(location.Value.FilePath);
             if (string.IsNullOrEmpty(directory))
             {
-                await _output.WriteToOutputAsync($"Unable to determine directory for '{resourceTypeName}'. Skipping.");
+                await _output.WriteToOutputAsync($"Unable to determine directory for '{type.Name}'. Skipping.");
                 return null;
             }
 
-            await _output.WriteToOutputAsync($"Resource type '{resourceTypeName}' found at: {location.Value.FilePath}");
+            await _output.WriteToOutputAsync($"Resource type '{type.Name}' found at: {location.Value.FilePath}");
             return (directory, location.Value.Project);
         }
 
-        /// <summary>
-        /// Finds the source file location for a given type name across the solution
-        /// </summary>
-        /// <param name="typeName">The type name to search for (e.g., "SharedResource")</param>
-        /// <param name="project">The projects which contains the file</param>
-        /// <returns>Tuple of (file path, project) or null if not found</returns>
-        public async Task<(string FilePath, Project Project)?> FindResourceTypeLocationAsync(string typeName, Project project)
+        public async Task<(string DirectoryPath, Project Project)?> GetResourceTypeDirectoryAsync(string typeName, Project project)
         {
-            // Search in the current project
             var compilation = await project.GetCompilationAsync();
             if (compilation is not null)
             {
@@ -438,6 +409,35 @@ namespace ResxGenerator.VSExtension.Infrastructure
                 {
                     // Try searching by name in all types (in case of namespace differences)
                     var allTypes = compilation.GetSymbolsWithName(typeName, SymbolFilter.Type);
+                    typeSymbol = allTypes.OfType<INamedTypeSymbol>().FirstOrDefault(); // take the first
+                }
+
+                if (typeSymbol is not null)
+                {
+                    return await GetResourceTypeDirectoryAsync(typeSymbol, project);
+                }
+            }
+
+            return null; // external assembly
+        }
+
+        /// <summary>
+        /// Finds the source file location for a given type name across the solution
+        /// </summary>
+        /// <param name="typeName">The type name to search for (e.g., "SharedResource")</param>
+        /// <param name="project">The projects which contains the file</param>
+        /// <returns>Tuple of (file path, project) or null if not found</returns>
+        public async Task<(string FilePath, Project Project)?> FindResourceTypeLocationAsync(ITypeSymbol type, Project project)
+        {
+            // Search in the current project
+            var compilation = await project.GetCompilationAsync();
+            if (compilation is not null)
+            {
+                var typeSymbol = compilation.GetTypeByMetadataName(type.ToFullyQualifiedName());
+                if (typeSymbol is null)
+                {
+                    // Try searching by name in all types (in case of namespace differences)
+                    var allTypes = compilation.GetSymbolsWithName(type.Name, SymbolFilter.Type);
                     typeSymbol = allTypes.OfType<INamedTypeSymbol>().FirstOrDefault(); // take the first
                 }
 
@@ -461,10 +461,10 @@ namespace ResxGenerator.VSExtension.Infrastructure
                     continue;
                 }
 
-                var typeSymbol = refCompilation.GetTypeByMetadataName(typeName);
+                var typeSymbol = refCompilation.GetTypeByMetadataName(type.ToFullyQualifiedName());
                 if (typeSymbol is null)
                 {
-                    var allTypes = refCompilation.GetSymbolsWithName(typeName, SymbolFilter.Type);
+                    var allTypes = refCompilation.GetSymbolsWithName(type.Name, SymbolFilter.Type);
                     typeSymbol = allTypes.OfType<INamedTypeSymbol>().FirstOrDefault();
                 }
 
@@ -478,16 +478,16 @@ namespace ResxGenerator.VSExtension.Infrastructure
         }
     }
 
-    public class ResourceTypeInfo
+    public class ResourceType
     {
-        public string Name { get; set; } = string.Empty;
+        public required ITypeSymbol? Type { get; set; }
 
-        public IEnumerable<ResourceStringInfo> Strings { get; set; } = [];
+        public IEnumerable<ResourceString> Strings { get; set; } = [];
     }
 
-    public class ResourceStringInfo
+    public class ResourceString
     {
-        public string Name { get; set; } = string.Empty;
+        public required string Name { get; set; }
 
         public int Occurrences { get; set; }
     }

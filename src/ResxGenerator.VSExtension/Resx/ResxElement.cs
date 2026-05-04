@@ -2,13 +2,19 @@
 
 namespace ResxGenerator.VSExtension.Resx
 {
-    public record ResxElement(string key, string? value, string? comment)
+    [DebuggerDisplay("Key = {Key}, Value = {Value}, Comment = {Comment}")]
+    public class ResxElement(string key, string? value, string? comment)
     {
         public string Key { get; set; } = key;
 
         public string? Value { get; set; } = value;
 
         public string? Comment { get; set; } = comment;
+
+        public override bool Equals(object? obj)
+        {
+            return obj is ResxElement other && Equals(other);
+        }
 
         public virtual bool Equals(ResxElement? other)
         {

@@ -5,6 +5,7 @@ using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Commands;
 using Microsoft.VisualStudio.Extensibility.Documents;
 using Microsoft.VisualStudio.Extensibility.Shell;
+using Microsoft.VisualStudio.Extensibility.Shell.FileDialog;
 using Microsoft.VisualStudio.Extensibility.VSSdkCompatibility;
 using Microsoft.VisualStudio.LanguageServices;
 using Microsoft.VisualStudio.ProjectSystem.Query;
@@ -17,9 +18,9 @@ using System.IO;
 namespace ResxGenerator.VSExtension.Commands
 {
     [VisualStudioContribution]
-    internal class ExportToExcelCommand(AsyncServiceProviderInjection<SComponentModel, SComponentModel> componentModelProvider, IAnalyzerService analyzer, IConfigurationService configuration, IExcelManager excelManager) : Command
+    internal class ExportToExcelCommand(ContextBuilder contextBuilder, IAnalyzerService analyzer, IConfigurationService configuration, IExcelManager excelManager) : Command
     {
-        private readonly AsyncServiceProviderInjection<SComponentModel, SComponentModel> _componentModelProvider = Requires.NotNull(componentModelProvider, nameof(componentModelProvider));
+        private readonly ContextBuilder _contextBuilder = Requires.NotNull(contextBuilder, nameof(contextBuilder));
         private readonly IAnalyzerService _analyzer = Requires.NotNull(analyzer, nameof(analyzer));
         private readonly IConfigurationService _configuration = Requires.NotNull(configuration, nameof(configuration));
         private readonly IExcelManager _excelManager = Requires.NotNull(excelManager, nameof(excelManager));
@@ -43,106 +44,89 @@ namespace ResxGenerator.VSExtension.Commands
         {
             try
             {
-                await _output.WriteToOutputAsync("=== Starting Excel Export ===");
+                await _output.WriteToOutputAsync("\n=== Starting Excel Export ===");
 
-                var componentModel = await _componentModelProvider.GetServiceAsync() as IComponentModel
-                    ?? throw new InvalidOperationException("Unable to get the MEF service.");
+                var prjCtx = await _contextBuilder.BuildProjectContextAsync(context);
+                var roslynCtx = await _contextBuilder.BuildRoslynContextAsync(prjCtx);
 
-                var workspace = componentModel.GetService<VisualStudioWorkspace>();
-
-                var projectSnapshot = await context.GetActiveProjectAsync(x => x.With(p => new
-                {
-                    p.Name,
-                    p.Path,
-                    p.TypeGuid
-                }), cancellationToken) ?? throw new InvalidOperationException("No active project found.");
-
-                if (!_configuration.TryGet(projectSnapshot, out var config))
-                {
-                    _configuration.AddDefault(projectSnapshot);
-                    throw new InvalidOperationException("No configuration file was found, a new one was created, please relaunch the command.");
-                }
-
-                var project = workspace.CurrentSolution.Projects
-                    .Where(x => x.FilePath == projectSnapshot.Path)
-                    .FirstOrDefault()
-                    ?? throw new InvalidOperationException("Unable to load current project.");
-
-                var projectDir = Path.GetDirectoryName(project.FilePath)!;
-                var compilation = await project.GetCompilationAsync(cancellationToken) ?? throw new InvalidOperationException("Unable to get the project compilation.");
-
-                // Step 1: Gather symbols and find all strings in code
                 await _output.WriteToOutputAsync("Analyzing source code...");
-                var symbols = await _analyzer.GatherTargetSymbolsAsync(compilation);
-                var resourceInfos = await _analyzer.FindStringsAsync(symbols, project.Solution, config.DefaultResourceName);
+                var symbols = await _analyzer.GatherTargetSymbolsAsync(roslynCtx.Compilation);
+                var resources = await _analyzer.FindStringsAsync(symbols, roslynCtx.Project.Solution, prjCtx.Config.DefaultResourceName);
 
-                await _output.WriteToOutputAsync($"Found {resourceInfos.Sum(x => x.Strings.Count())} strings across {resourceInfos.Count()} resource types.");
+                await _output.WriteToOutputAsync($"Found {resources.Sum(x => x.Strings.Count())} strings across {resources.Count()} resource types.");
 
-                // Step 2: Find all .resx files for each resource type
                 await _output.WriteToOutputAsync("Scanning .resx files...");
                 var allResxEntries = new List<ExcelModel>();
 
-                foreach (var resourceInfo in resourceInfos)
+                foreach (var resource in resources)
                 {
-                    var location = await _analyzer.FindResourceTypeLocationAsync(resourceInfo.Name, project);
-                    if (location is null)
+                    string fullyQualifiedName;
+                    string directory;
+
+                    if (resource.Type is null)
                     {
-                        continue;
+                        // Fallback per stringhe non attribuite a nessun tipo
+                        fullyQualifiedName = prjCtx.Config.DefaultResourceName;
+                        directory = prjCtx.Directory;
+                    }
+                    else
+                    {
+                        var location = await _analyzer.FindResourceTypeLocationAsync(resource.Type, roslynCtx.Project);
+                        if (location is null)
+                        {
+                            continue;
+                        }
+
+                        fullyQualifiedName = resource.Type.ToFullyQualifiedName();
+                        directory = Path.GetDirectoryName(location.Value.FilePath)!;
                     }
 
-                    var directory = Path.GetDirectoryName(location.Value.FilePath);
-
-                    // Find all .resx files for this resource type
-                    var files = Directory.GetFiles(directory, $"{resourceInfo.Name}.*.resx");
+                    // Find all .resx files for this resource
+                    var resourceName = resource.Type?.Name ?? prjCtx.Config.DefaultResourceName;
+                    var files = Directory.GetFiles(directory, Config.BuildCatchAllResxFileName(resourceName));
                     if (files.Length == 0)
                     {
-                        await _output.WriteToOutputAsync($"No .resx files found for {resourceInfo.Name}");
+                        await _output.WriteToOutputAsync($"No .resx files found for {resourceName}");
                     }
 
-                    // Group by key across all language files
                     var entriesByKey = new Dictionary<string, ExcelModel>(StringComparer.OrdinalIgnoreCase);
+                    var occurrencesMap = resource.Strings.ToDictionary(x => x.Name, x => x.Occurrences);
 
+                    // update strings in the resx files
                     foreach (var file in files)
                     {
-                        var resxManager = ResxManager.Load(file);
+                        var resxManager = ResxManager.OpenOrCreate(file);
 
-                        // Extract language from filename (e.g., "SharedResource.it-IT.resx" -> "it-IT")
-                        var parts = Path.GetFileNameWithoutExtension(file).Split('.'); // "SharedResource.it-IT"
-                        var language = parts.Length > 1
-                            ? parts.Last()
-                            : string.Empty;
-
-                        if (string.IsNullOrEmpty(language))
+                        if (!Config.TryParseCultureFromResxFileName(file, out var culture))
                         {
                             await _output.WriteToOutputAsync($"Unable to parse the culture of file {file}");
+                            continue;
                         }
 
                         foreach (var element in resxManager.EnumerateElements())
                         {
                             if (entriesByKey.TryGetValue(element.Key, out var model))
                             {
-                                model.Languages[language] = (element.Value, element.Comment);
+                                model.Cultures[culture] = (element.Value, element.Comment);
                                 continue;
                             }
 
-                            var codeEntry = resourceInfo.Strings
-                                .Where(x => x.Name == element.Key)
-                                .FirstOrDefault();
-
                             entriesByKey[element.Key] = new ExcelModel
                             {
-                                ResourcePath = location.Value.FilePath,
+                                FullyQualifiedName = fullyQualifiedName,
                                 Key = element.Key,
-                                Occurrences = codeEntry?.Occurrences ?? 0
+                                Occurrences = occurrencesMap.GetValueOrDefault(element.Key),
+                                Cultures = { [culture] = (element.Value, element.Comment) }
                             };
                         }
                     }
 
-                    foreach (var entry in resourceInfo.Strings.Where(x => !entriesByKey.ContainsKey(x.Name)))
+                    // insert strings that are not in the resx files
+                    foreach (var entry in resource.Strings.Where(x => !entriesByKey.ContainsKey(x.Name)))
                     {
                         entriesByKey[entry.Name] = new ExcelModel
                         {
-                            ResourcePath = location.Value.FilePath,
+                            FullyQualifiedName = fullyQualifiedName,
                             Key = entry.Name,
                             Occurrences = entry.Occurrences
                         };
@@ -153,14 +137,13 @@ namespace ResxGenerator.VSExtension.Commands
 
                 await _output.WriteToOutputAsync($"Total keys found: {allResxEntries.Count}");
 
-                var defaultFileName = $"{projectSnapshot.Name}_Translations_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+                var defaultFileName = $"{prjCtx.Name}_Translations_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
 
-                var excelPath = await Extensibility
-                    .Shell()
-                    .ShowSaveAsFileDialogAsync(new Microsoft.VisualStudio.Extensibility.Shell.FileDialog.FileDialogOptions
+                var excelPath = await Extensibility.Shell()
+                    .ShowSaveAsFileDialogAsync(new FileDialogOptions
                     {
                         Title = "Save exported excel file",
-                        InitialDirectory = projectDir,
+                        InitialDirectory = prjCtx.Directory,
                         InitialFileName = defaultFileName,
                     }, cancellationToken);
 
@@ -170,15 +153,13 @@ namespace ResxGenerator.VSExtension.Commands
                     return;
                 }
 
-                _excelManager.WriteFile(excelPath, allResxEntries);
+                using (var stream = File.Open(excelPath, FileMode.OpenOrCreate))
+                {
+                    _excelManager.Write(stream, allResxEntries);
+                }
 
                 await _output.WriteToOutputAsync($"Excel file created: {excelPath}");
-                await _output.WriteToOutputAsync("=== Excel Export Complete ===");
-
-
-                await Extensibility
-                    .Shell()
-                    .ShowPromptAsync($"Excel export completed successfully!\n\n{excelPath}", PromptOptions.OK, cancellationToken);
+                await _output.WriteToOutputAsync("\n=== Command executed successfully ===");
             }
             catch (Exception e)
             {

@@ -8,5 +8,12 @@
                 ? value
                 : default;
         }
+
+        public static V? GetValueOrDefault<K, V>(this IReadOnlyDictionary<K, V> dict, K key)
+        {
+            return dict.TryGetValue(key, out var value)
+                ? value
+                : default;
+        }
     }
 }

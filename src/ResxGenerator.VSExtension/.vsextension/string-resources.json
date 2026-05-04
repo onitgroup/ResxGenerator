@@ -5,5 +5,7 @@
   "ResxGenerator.VSExtension.AddChatGPTConfigCommand.DisplayName": "Add ChatGPT configuration",
   "ResxGenerator.VSExtension.AddChatGPTConfigCommand.ToolTip": "Adds a base configuration for the ChatGPT translator.",
   "ResxGenerator.VSExtension.ExportToExcelCommand.DisplayName": "Export to Excel",
-  "ResxGenerator.VSExtension.ExportToExcelCommand.ToolTip": "Exports the current data to an Excel file."
+  "ResxGenerator.VSExtension.ExportToExcelCommand.ToolTip": "Exports the current data to an Excel file.",
+  "ResxGenerator.VSExtension.ImportFromExcelCommand.DisplayName": "Import from Excel",
+  "ResxGenerator.VSExtension.ImportFromExcelCommand.ToolTip": "Overwrites the current data from an Excel file."
 }

@@ -11,13 +11,20 @@
         //[return: NotNullIfNotNull(nameof(value))]
         public static string? TrimOne(this string value, char c)
         {
-            if (value is null) return null;
+            if (string.IsNullOrEmpty(value))
+            {
+                return null;
+            }
 
             if (value[0] == c)
+            {
                 value = value.Substring(1);
+            }
 
             if (value[value.Length - 1] == c)
+            {
                 value = value.Substring(0, value.Length - 1);
+            }
 
             return value;
         }

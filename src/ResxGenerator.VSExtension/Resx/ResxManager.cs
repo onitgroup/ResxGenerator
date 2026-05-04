@@ -7,37 +7,16 @@ namespace ResxGenerator.VSExtension.Resx
     /// <summary>
     /// Create and write to resx resource files
     /// </summary>
-    public class ResxManager
+    public class ResxManager(string filePath)
     {
-        private readonly XDocument _xd;
-        private readonly string _resourceFilePath;
-
-        public ResxManager(string resourceFullPath)
-        {
-            _resourceFilePath = resourceFullPath;
-
-            if (!File.Exists(_resourceFilePath))
-                CreateNewResxFile();
-
-            _xd = XDocument.Load(_resourceFilePath);
-        }
-
-        private void CreateNewResxFile()
-        {
-            // Create a copy of the template resx resource
-            var resxTemplate = Assembly.GetExecutingAssembly()
-                .GetManifestResourceStream("ResxGenerator.VSExtension.Resx.ResxTemplate.xml")
-                ?? throw new FileNotFoundException("Unable to load the Resx template from assembly");
-
-            using var file = File.Create(_resourceFilePath);
-            resxTemplate.CopyTo(file);
-        }
+        private readonly string _filePath = filePath;
+        private readonly XDocument _doc = XDocument.Load(filePath);
 
         public IEnumerable<ResxElement> EnumerateElements()
         {
-            if (_xd.Root is null) throw new InvalidOperationException("XML root element is null");
+            if (_doc.Root is null) throw new InvalidOperationException("XML root element is null");
 
-            foreach (var element in _xd.Root.Descendants("data").Where(x => x.Attribute("name") is not null))
+            foreach (var element in _doc.Root.Descendants("data").Where(x => x.Attribute("name") is not null))
             {
                 yield return new ResxElement(
                     element.Attribute("name")!.Value,
@@ -54,30 +33,31 @@ namespace ResxGenerator.VSExtension.Resx
         /// <returns></returns>
         public void AddRange(IEnumerable<ResxElement> elements, bool overwriteValues = false)
         {
-            if (_xd.Root is null) throw new InvalidOperationException("XML root element is null");
+            if (_doc.Root is null) throw new InvalidOperationException("XML root element is null");
 
-            var existingKeys = _xd.Root
+            var existingKeys = _doc.Root
                 .Descendants("data")
                 .Where(x => x.Attribute("name") is not null)
                 .Select(x => x.Attribute("name")!.Value)
                 .OrderBy(x => x) // required for BinarySearch
                 .ToList();
 
-            foreach (var e in elements.Distinct())
+            foreach (var element in elements.Distinct())
             {
-                if (string.IsNullOrWhiteSpace(e.Key))
+                if (string.IsNullOrWhiteSpace(element.Key))
+                {
                     continue;
+                }
 
-                e.Value ??= string.Empty;
+                element.Value ??= string.Empty;
 
-                if (existingKeys.BinarySearch(e.Key, StringComparer.InvariantCultureIgnoreCase) >= 0)
+                if (existingKeys.BinarySearch(element.Key, StringComparer.InvariantCultureIgnoreCase) >= 0)
                 {
                     // the key exists
-
-                    var existingElement = _xd.Root
+                    var existingElement = _doc.Root
                             .Descendants("data")
-                            .Where(x => string.Equals(e.Key, x.Attribute("name")?.Value, StringComparison.InvariantCultureIgnoreCase))
-                            .FirstOrDefault();
+                            .Where(x => string.Equals(element.Key, x.Attribute("name")?.Value, StringComparison.InvariantCultureIgnoreCase))
+                            .First();
 
                     var value = existingElement.Descendants("value").FirstOrDefault();
 
@@ -87,20 +67,20 @@ namespace ResxGenerator.VSExtension.Resx
                         var comment = existingElement.Descendants("comment").FirstOrDefault();
                         if (comment is null)
                         {
-                            existingElement.Add(new XElement("comment", e.Comment));
+                            existingElement.Add(new XElement("comment", element.Comment));
                         }
-                        else if (string.IsNullOrEmpty(e.Comment) == false)
+                        else if (string.IsNullOrEmpty(element.Comment) == false)
                         {
-                            comment.Value = e.Comment;
+                            comment.Value = element.Comment;
                         }
 
                         if (value is null)
                         {
-                            existingElement.Add(new XElement("value", e.Value));
+                            existingElement.Add(new XElement("value", element.Value));
                         }
                         else
                         {
-                            value.Value = e.Value;
+                            value.Value = element.Value;
                         }
                     }
                     else
@@ -113,13 +93,13 @@ namespace ResxGenerator.VSExtension.Resx
                     // new key
 
                     var xmlElement = new XElement("data",
-                        new XAttribute("name", e.Key),
+                        new XAttribute("name", element.Key),
                         new XAttribute($"{XNamespace.Xml + "space"}", "preserve"),
-                        new XElement("value", e.Value),
-                        new XElement("comment", e.Comment)
+                        new XElement("value", element.Value),
+                        new XElement("comment", element.Comment)
                     );
 
-                    _xd.Root.Add(xmlElement);
+                    _doc.Root.Add(xmlElement);
                 }
             }
         }
@@ -130,12 +110,28 @@ namespace ResxGenerator.VSExtension.Resx
         /// <returns>True if the operation was successfull, otherwise false</returns>
         public void Save()
         {
-            _xd.Save(_resourceFilePath);
+            _doc.Save(_filePath);
         }
 
-        public static ResxManager Load(string resourceFullPath)
+        private static void CreateFromTemplate(string filePath)
         {
-            return new ResxManager(resourceFullPath);
+            // Create a copy of the template resx resource
+            var resxTemplate = Assembly.GetExecutingAssembly()
+                .GetManifestResourceStream("ResxGenerator.VSExtension.Resx.ResxTemplate.xml")
+                ?? throw new FileNotFoundException("Unable to load the Resx template from assembly");
+
+            using var file = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            resxTemplate.CopyTo(file);
+        }
+
+        public static ResxManager OpenOrCreate(string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                CreateFromTemplate(filePath);
+            }
+
+            return new ResxManager(filePath);
         }
     }
 }
