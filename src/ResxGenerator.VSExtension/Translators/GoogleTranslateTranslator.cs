@@ -1,6 +1,7 @@
 ﻿using Microsoft;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Documents;
+using Microsoft.VisualStudio.RpcContracts.ProgressReporting;
 using ResxGenerator.VSExtension.Infrastructure;
 using System.Globalization;
 using System.Net.Http;
@@ -32,7 +33,7 @@ namespace ResxGenerator.VSExtension.Translators
             Assumes.NotNull(_output);
         }
 
-        public async Task<Dictionary<string, string?>> TranslateAsync(ITranslatorSettings? _, CultureInfo source, CultureInfo target, IEnumerable<string> values)
+        public async Task<Dictionary<string, string?>> TranslateAsync(ITranslatorSettings? _, CultureInfo source, CultureInfo target, IEnumerable<string> values, IProgress<ProgressStatus>? progress = null)
         {
             var res = new Dictionary<string, string?>();
 
@@ -48,7 +49,7 @@ namespace ResxGenerator.VSExtension.Translators
                 int c = 0;
                 while (c < values.Count()) // iter in chunk to avoid long urls, the parameters are all in query string
                 {
-                    await _output.WriteToOutputAsync($"Translating: {(c + 1) / (decimal)values.Count() * 100:0.00}%");
+                    progress?.Report(new ProgressStatus(c + 1 / values.Count(), "Translating"));
                     var sub = values.Skip(c).Take(CHUNK_SIZE);
 
                     var builder = new StringBuilder(baseUrl);
@@ -72,11 +73,10 @@ namespace ResxGenerator.VSExtension.Translators
 
                     c += CHUNK_SIZE;
                 }
-                await _output.WriteToOutputAsync("Translations done.");
             }
             catch (Exception)
             {
-                await _output.WriteToOutputAsync("Unable to get the translations, empty values will be used.");
+                await _output.WriteToOutputAsync(" - Unable to get the translations, empty values will be used.");
             }
 
             if (res.ContainsKey(string.Empty))

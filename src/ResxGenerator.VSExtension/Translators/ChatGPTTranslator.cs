@@ -1,6 +1,8 @@
-﻿using Microsoft;
+﻿using DocumentFormat.OpenXml.Presentation;
+using Microsoft;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Documents;
+using Microsoft.VisualStudio.RpcContracts.ProgressReporting;
 using ResxGenerator.VSExtension.Infrastructure;
 using System.Globalization;
 using System.Net.Http;
@@ -37,7 +39,7 @@ namespace ResxGenerator.VSExtension.Translators
             Assumes.NotNull(_output);
         }
 
-        public async Task<Dictionary<string, string?>> TranslateAsync(ITranslatorSettings? settingsInterface, CultureInfo source, CultureInfo target, IEnumerable<string> values)
+        public async Task<Dictionary<string, string?>> TranslateAsync(ITranslatorSettings? settingsInterface, CultureInfo source, CultureInfo target, IEnumerable<string> values, IProgress<ProgressStatus>? progress = null)
         {
             if (settingsInterface is null) throw new ArgumentNullException(nameof(settingsInterface));
             var settings = (Settings)settingsInterface;
@@ -58,7 +60,7 @@ namespace ResxGenerator.VSExtension.Translators
                 int c = 0;
                 while (c < values.Count()) // iter to reduce the response time and to better manage the errors
                 {
-                    await _output.WriteToOutputAsync($"Translating: {(c + 1) / (decimal)values.Count() * 100:0.00}%");
+                    progress?.Report(new ProgressStatus(c + 1 / values.Count(), "Translating"));
                     var sub = values.Skip(c).Take(CHUNK_SIZE).ToList();
 
                     // after a long series of test 
@@ -106,8 +108,6 @@ namespace ResxGenerator.VSExtension.Translators
                         // unparsable response, retry
                     }
                 }
-
-                await _output.WriteToOutputAsync("Translations done.");
             }
             catch (Exception ex)
             {

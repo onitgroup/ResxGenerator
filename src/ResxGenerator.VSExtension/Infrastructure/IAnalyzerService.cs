@@ -71,7 +71,10 @@ namespace ResxGenerator.VSExtension.Infrastructure
                 SyntaxKind.StringLiteralExpression => expression.GetText().ToString().TrimOne('"'),
 #if DEBUG
                 SyntaxKind.TypeOfExpression => null,
-                _ => throw new NotImplementedException(),
+                SyntaxKind.SimpleMemberAccessExpression => null,
+                SyntaxKind.InvocationExpression => null,
+                SyntaxKind.AddExpression => null,
+                _ => null,
 #else
                 _ => null,
 #endif
