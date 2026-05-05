@@ -78,7 +78,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
             {
                 RowIndex = 1
             };
-            headerRow.Append(CreateCell("Resource Path"));
+            headerRow.Append(CreateCell("Resource Name"));
             headerRow.Append(CreateCell("Key"));
             headerRow.Append(CreateCell("Occurrences"));
 
