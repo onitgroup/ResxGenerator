@@ -51,7 +51,7 @@ namespace ResxGenerator.VSExtension.Commands
 
                 await _output.WriteToOutputAsync("Analyzing source code...");
                 var symbols = await _analyzer.GatherTargetSymbolsAsync(roslynCtx.Compilation);
-                var resources = await _analyzer.FindStringsAsync(symbols, roslynCtx.Project.Solution, prjCtx.Config.DefaultResourceName);
+                var resources = await _analyzer.FindStringsAsync(symbols, roslynCtx.Project, prjCtx.Config.DefaultResourceName);
 
                 await _output.WriteToOutputAsync($"Found {resources.Sum(x => x.Strings.Count())} strings across {resources.Count()} resource types.");
 

@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.VisualStudio.Extensibility;
 using Microsoft.VisualStudio.Extensibility.Documents;
 using Microsoft.VisualStudio.Extensibility.Helpers;
+using System.Collections.Immutable;
 using System.IO;
 
 #pragma warning disable VSEXTPREVIEW_OUTPUTWINDOW
@@ -29,7 +30,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
         /// <param name="symbols">The symbols to search</param>
         /// <param name="solution">The solution to search in</param>
         /// <returns>Dictionary mapping resource type names to their strings</returns>
-        Task<IEnumerable<ResourceType>> FindStringsAsync(IEnumerable<ISymbol> symbols, Solution solution, string defaultResourceType);
+        Task<IEnumerable<ResourceType>> FindStringsAsync(IEnumerable<ISymbol> symbols, Project project, string defaultResourceType);
 
         /// <summary>
         /// Gets the directory path where resx files should be created for a given resource type
@@ -151,6 +152,19 @@ namespace ResxGenerator.VSExtension.Infrastructure
             }
 
             return semanticModel.GetTypeInfo(typeOfExpression.Type).Type;
+        }
+
+        private static IImmutableSet<Document> GetTargetDocuments(Project project)
+        {
+            List<Project> projects = [project];
+
+            projects.AddRange(project.ProjectReferences
+                .Select(x => project.Solution.GetProject(x.ProjectId))
+                .OfType<Project>());
+
+            return projects
+                .SelectMany(x => x.Documents)
+                .ToImmutableHashSet();
         }
 
         // <inheritdoc />
@@ -278,14 +292,15 @@ namespace ResxGenerator.VSExtension.Infrastructure
         }
 
         // <inheritdoc />
-        public async Task<IEnumerable<ResourceType>> FindStringsAsync(IEnumerable<ISymbol> symbols, Solution solution, string defaultResourceType)
+        public async Task<IEnumerable<ResourceType>> FindStringsAsync(IEnumerable<ISymbol> symbols, Project project, string defaultResourceType)
         {
             // Dictionary: ResourceType -> List of strings
             var strings = new List<(ITypeSymbol? Type, IEnumerable<string> Strings)>();
+            var documents = GetTargetDocuments(project);
 
             foreach (var symbol in symbols)
             {
-                var results = await SymbolFinder.FindReferencesAsync(symbol, solution);
+                var results = await SymbolFinder.FindReferencesAsync(symbol, project.Solution, documents);
 
                 foreach (var result in results)
                 {

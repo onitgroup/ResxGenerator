@@ -76,7 +76,7 @@ namespace ResxGenerator.VSExtension.Commands
                 await _output.WriteToOutputAsync($"Target languages: {string.Join(", ", prjCtx.Config.Languages)}");
 
                 var symbols = await _analyzer.GatherTargetSymbolsAsync(roslynCtx.Compilation);
-                var resources = await _analyzer.FindStringsAsync(symbols, roslynCtx.Project.Solution, prjCtx.Config.DefaultResourceName);
+                var resources = await _analyzer.FindStringsAsync(symbols, roslynCtx.Project, prjCtx.Config.DefaultResourceName);
 
                 await _output.WriteToOutputAsync($"Found {resources.Sum(x => x.Strings.Count())} strings across {resources.Count()} resource types.");
 
@@ -125,7 +125,7 @@ namespace ResxGenerator.VSExtension.Commands
                         directory = location.Value.DirectoryPath;
                         isInCurrentProject = location.Value.Project.Id == roslynCtx.Project.Id;
 
-                        await _output.WriteToOutputAsync($"Processing resource: {resource.Type.Name} ({strings.Count()} strings)");
+                        await _output.WriteToOutputAsync($"Processing resource: {resourceName} ({strings.Count()} strings)");
 
                         if (!isInCurrentProject)
                         {
