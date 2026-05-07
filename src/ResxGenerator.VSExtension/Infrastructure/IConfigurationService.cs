@@ -61,6 +61,17 @@ namespace ResxGenerator.VSExtension.Infrastructure
 
             using var readStream = new FileStream(configFile.FullName, FileMode.Open);
             config = JsonSerializer.Deserialize<Config>(readStream);
+
+            if (!string.IsNullOrEmpty(config.ResourceName))
+            {
+                throw new InvalidDataException($"The config '{nameof(Config.ResourceName)}' is obsolete, please change it to '{nameof(Config.DefaultResourceName)}' and relaunch the command.");
+            }
+
+            if (string.IsNullOrEmpty(config.DefaultResourceName))
+            {
+                throw new InvalidDataException($"Missing required config '{nameof(Config.DefaultResourceName)}'");
+            }
+
             return config is not null;
         }
 
@@ -128,7 +139,7 @@ namespace ResxGenerator.VSExtension.Infrastructure
         [Obsolete("ResourceName is deprecated, use DefaultResourceName instead")]
         public string? ResourceName { get; set; }
 
-        public required string DefaultResourceName { get; set; }
+        public string DefaultResourceName { get; set; } = string.Empty;
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public string? ValidationComment { get; set; }
